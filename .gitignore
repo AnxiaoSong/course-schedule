@@ -1,0 +1,11 @@
+node_modules/
+tools/
+名单/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/captures/
+*.iml
+.DS_Store

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#3b5bdb" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>课程表 · 26大数据</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="title-wrap">
+        <h1>26 大数据 · 课程表</h1>
+        <p class="sub">2026-2027学年 第一学期 · 班级课表</p>
+      </div>
+      <div class="week-nav">
+        <button id="prevWeek" aria-label="上一周">‹</button>
+        <button id="weekLabel" class="week-label">第 3 周</button>
+        <button id="nextWeek" aria-label="下一周">›</button>
+      </div>
+      <div class="date-range" id="dateRange"></div>
+    </header>
+
+    <main class="timetable-wrap">
+      <div class="timetable" id="timetable"></div>
+    </main>
+
+    <section class="today-panel" id="todayPanel"></section>
+
+    <div class="modal" id="modal">
+      <div class="modal-card" id="modalCard"></div>
+    </div>
+
+    <button class="rc-fab" id="rcFab">点名</button>
+    <button class="ci-fab" id="ciFab">签到</button>
+
+    <div class="rc-overlay" id="ciOverlay">
+      <div class="rc-sheet">
+        <div class="rc-head">
+          <h2>蓝牙签到 · 教师端</h2>
+          <button class="m-close" id="ciClose" aria-label="关闭">×</button>
+        </div>
+        <div class="ci-status" id="ciStatus">
+          <span class="ci-dot" id="ciDot"></span>
+          <span id="ciStatusText">未开启</span>
+        </div>
+        <div class="rc-actions">
+          <button id="ciGo" type="button">开始签到</button>
+          <button id="ciCopy" type="button" disabled>复制名单</button>
+        </div>
+        <p class="rc-drop-hint">学生用手机 Chrome 打开签到页，选择老师的蓝牙设备并填写姓名即可自动签到</p>
+        <div class="ci-students" id="ciStudents"></div>
+      </div>
+    </div>
+
+    <div class="rc-overlay" id="rcOverlay">
+      <div class="rc-sheet">
+        <div class="rc-head">
+          <h2>随机点名</h2>
+          <button class="m-close" id="rcClose" aria-label="关闭">×</button>
+        </div>
+        <div class="rc-upload">
+          <label for="rcFile" id="rcPickFile">上传名单（自动识别班级）</label>
+          <input id="rcFile" type="file" accept=".xls,.xlsx,.csv,.txt" hidden />
+        </div>
+        <p class="rc-drop-hint">支持拖拽文件到本面板 · 点标签上的 ✎ 可修改班级名</p>
+        <div class="rc-chips" id="rcChips"></div>
+        <div class="rc-stage" id="rcStage">
+          <div class="rc-name" id="rcName">?</div>
+          <div class="rc-info" id="rcInfo">填写班级编号并上传教学记录表（.xls）</div>
+        </div>
+        <div class="rc-count">
+          <span>每次抽取</span>
+          <button type="button" id="rcMinus" aria-label="减少">−</button>
+          <b id="rcCountNum">1</b>
+          <button type="button" id="rcPlus" aria-label="增加">＋</button>
+          <span>人</span>
+        </div>
+        <div class="rc-actions">
+          <button id="rcGo" type="button" disabled>开始点名</button>
+          <button id="rcReset" type="button" disabled>重置本轮</button>
+        </div>
+        <label class="rc-toggle">
+          <input type="checkbox" id="rcNoRepeat" checked />
+          <span>本轮不重复</span>
+        </label>
+        <div class="rc-history" id="rcHistory"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+  <script src="rollcall.js"></script>
+  <script src="checkin.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "appId": "com.courseschedule.app",
+  "appName": "课程表",
+  "webDir": "www",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "auto"
+  }
+}

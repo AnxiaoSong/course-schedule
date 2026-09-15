@@ -1,0 +1,19 @@
+{
+  "name": "course-schedule",
+  "version": "1.0.0",
+  "description": "26大数据 线性代数课程表",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "open:android": "npx cap open android",
+    "apk": "cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "xlsx": "^0.18.5"
+  },
+  "license": "MIT"
+}
