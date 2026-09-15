@@ -111,8 +111,16 @@ public class BleCheckInPlugin extends Plugin {
                 if (value == null || value.length == 0) return;
                 String payload = new String(value, StandardCharsets.UTF_8).trim();
                 if (payload.isEmpty() || payload.length() > 200) return;
+                String name = payload;
+                String id = "";
+                int sep = payload.indexOf('|');
+                if (sep >= 0) {
+                    name = payload.substring(0, sep).trim();
+                    id = payload.substring(sep + 1).trim();
+                }
                 JSObject data = new JSObject();
-                data.put("name", payload);
+                data.put("name", name);
+                data.put("id", id);
                 data.put("mac", device.getAddress());
                 notifyListeners("checkin", data);
             }

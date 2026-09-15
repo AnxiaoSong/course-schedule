@@ -376,6 +376,23 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   100% { box-shadow: 0 0 0 0 rgba(18, 183, 106, 0); }
 }
 
+.ci-url {
+  margin-top: 10px;
+  background: #10162b;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.ci-url-title { font-size: 10px; color: #8a93a3; margin: 2px 0 4px; }
+.ci-url-line {
+  font-size: 15px; font-weight: 700; color: #4ade80;
+  font-family: ui-monospace, Consolas, monospace;
+  padding: 3px 0; cursor: pointer;
+}
+.ci-row i {
+  font-style: normal; font-size: 11px; color: var(--muted);
+  font-family: ui-monospace, Consolas, monospace; margin-left: 4px;
+}
+
 .ci-students { margin-top: 12px; max-height: 40vh; overflow-y: auto; }
 .ci-row {
   display: flex;

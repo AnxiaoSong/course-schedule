@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>签到监控 · 教师端</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: #10162b; color: #eef1f8;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      padding: 24px;
+    }
+    header { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 24px; }
+    .total { font-size: 46px; font-weight: 800; color: #4ade80; line-height: 1; }
+    .total small { font-size: 16px; color: #8a93a3; font-weight: 400; }
+    .actions { margin-left: auto; display: flex; gap: 10px; }
+    button {
+      border: 1.5px solid #3a4468; background: transparent; color: #aab4d4;
+      border-radius: 10px; padding: 9px 18px; font-size: 14px; cursor: pointer; font-family: inherit;
+    }
+    button:hover { border-color: #5b7cfa; color: #fff; }
+    button.danger { border-color: #b23b48; color: #ff9aa4; }
+    table { width: 100%; border-collapse: collapse; font-size: 19px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #232c4d; }
+    th { color: #8a93a3; font-size: 13px; font-weight: 600; }
+    td.num { color: #8a93a3; font-size: 15px; width: 56px; }
+    td.id { color: #9fb4ff; font-family: ui-monospace, Consolas, monospace; }
+    td.time { color: #8a93a3; font-size: 14px; text-align: right; }
+    tr.new td { animation: flash 1.2s ease; }
+    @keyframes flash { from { background: #1d3a2a; } to { background: transparent; } }
+    .empty { color: #5b6473; padding: 40px 0; text-align: center; font-size: 16px; }
+    .footer { margin-top: 18px; color: #5b6473; font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>签到监控</h1>
+    <div class="total"><span id="n">0</span><small> 人已签到</small></div>
+    <div class="actions">
+      <button id="refresh">立即刷新</button>
+      <button id="clear" class="danger">清空名单</button>
+    </div>
+  </header>
+  <table>
+    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th style="text-align:right">时间</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="4" class="empty">暂无学生签到</td></tr></tbody>
+  </table>
+  <p class="footer">自动刷新中（2 秒） · 数据来自教师手机签到服务</p>
+
+  <script>
+    "use strict";
+    var lastJson = "";
+    function render(data) {
+      document.getElementById("n").textContent = data.total;
+      var tb = document.getElementById("rows");
+      if (!data.total) {
+        tb.innerHTML = '<tr><td colspan="4" class="empty">暂无学生签到</td></tr>';
+        return;
+      }
+      tb.innerHTML = data.students.map(function (s, i) {
+        return "<tr" + (i === 0 && s.isNew ? ' class="new"' : "") + ">"
+          + '<td class="num">' + (i + 1) + "</td>"
+          + '<td class="id">' + esc(s.id || "—") + "</td>"
+          + "<td>" + esc(s.name) + "</td>"
+          + '<td class="time">' + esc(s.time) + "</td></tr>";
+      }).join("");
+    }
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+      });
+    }
+    async function load() {
+      try {
+        var r = await fetch("/api/list", { cache: "no-store" });
+        var j = await r.json();
+        var text = JSON.stringify(j);
+        j.students.forEach(function (s, i) { s.isNew = false; });
+        if (text !== lastJson && lastJson) j.students[0] && (j.students[0].isNew = true);
+        lastJson = text;
+        render(j);
+      } catch (e) { /* 服务不可达时静默重试 */ }
+    }
+    document.getElementById("refresh").addEventListener("click", load);
+    document.getElementById("clear").addEventListener("click", async function () {
+      if (!confirm("确定清空签到名单？")) return;
+      await fetch("/api/clear");
+      lastJson = "";
+      load();
+    });
+    load();
+    setInterval(load, 2000);
+  </script>
+</body>
+</html>
