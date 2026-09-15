@@ -7,6 +7,8 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import android.content.Context;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,6 +61,28 @@ public class WifiCheckInPlugin extends Plugin {
 
     @PluginMethod
     public void getInfo(PluginCall call) { call.resolve(makeInfo()); }
+
+    @PluginMethod
+    public void getHotspot(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("ssid", "");
+        ret.put("password", "");
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            try {
+                Object wm = getContext().getSystemService(Context.WIFI_SERVICE);
+                if (wm != null) {
+                    Object cfg = wm.getClass().getMethod("getSoftApConfiguration").invoke(wm);
+                    if (cfg != null) {
+                        Object ssid = cfg.getClass().getMethod("getSsid").invoke(cfg);
+                        Object pwd = cfg.getClass().getMethod("getPassphrase").invoke(cfg);
+                        if (ssid != null) ret.put("ssid", String.valueOf(ssid));
+                        if (pwd != null) ret.put("password", String.valueOf(pwd));
+                    }
+                }
+            } catch (Throwable ignored) { }
+        }
+        call.resolve(ret);
+    }
 
     private JSObject makeInfo() {
         JSObject ret = new JSObject();

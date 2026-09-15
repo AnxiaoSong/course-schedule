@@ -8,9 +8,6 @@
     students: [],
   };
 
-  function ble() {
-    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BleCheckIn;
-  }
   function wifi() {
     return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.WifiCheckIn;
   }
@@ -20,27 +17,91 @@
     $("ciDot").className = "ci-dot" + (on ? " on" : "");
   }
 
-  function showUrl(ips, port) {
+  function qrSvg(text, cell) {
+    try {
+      const qr = window.qrcode(0, "M");
+      qr.addData(text);
+      qr.make();
+      return qr.createSvgTag({ cellSize: cell, margin: 2 });
+    } catch (e) {
+      return "<div style='font-size:11px;color:#8a93a3'>二维码生成失败</div>";
+    }
+  }
+
+  function escWifi(s) {
+    return String(s || "").replace(/([\\;,":])/g, "\\$1");
+  }
+
+  function loadHotspotManual() {
+    try { return JSON.parse(localStorage.getItem("ci-hotspot") || "{}"); } catch (e) { return {}; }
+  }
+  function saveHotspotManual(o) {
+    localStorage.setItem("ci-hotspot", JSON.stringify(o));
+  }
+
+  function askHotspot() {
+    const saved = loadHotspotManual();
+    const ssid = prompt("热点名称（学生连接的 WiFi 名）", saved.ssid || "");
+    if (ssid === null) return null;
+    const pwd = prompt("热点密码", saved.pwd || "");
+    if (pwd === null) return null;
+    const o = { ssid: ssid.trim(), pwd: pwd.trim() };
+    if (o.ssid) saveHotspotManual(o);
+    return o;
+  }
+
+  function showQr(urls, hotspot) {
     const box = $("ciUrl");
-    if (!ips || !ips.length || !port) { box.hidden = true; return; }
     box.hidden = false;
-    const urls = ips.map((ip) => `http://${ip}:${port}`);
-    box.innerHTML = `<div class="ci-url-title">学生签到入口（连本机热点后浏览器打开）</div>` +
-      urls.map((u) => `<div class="ci-url-line" data-url="${u}">${u} 📋</div>`).join("") +
-      `<div class="ci-url-title" style="margin-top:6px">教师监控大屏</div>` +
-      urls.map((u) => `${u.replace(/\/$/, "")}/monitor`).join(" 或 ");
-    box.querySelectorAll(".ci-url-line").forEach((el) =>
+    const base = "http://" + urls[0];
+    const wifiCard = hotspot
+      ? `<div class="qr-card" data-qr="wifi">
+           <div class="qr-img" data-big="1">${qrSvg(`WIFI:T:WPA;S:${escWifi(hotspot.ssid)};P:${escWifi(hotspot.pwd)};;`, 5)}</div>
+           <div class="qr-cap">① 扫码连热点</div>
+           <div class="qr-sub">${hotspot.ssid}</div>
+         </div>`
+      : `<div class="qr-card"><div class="qr-none">未设置热点<br><b id="ciSetHot">点击设置</b></div><div class="qr-cap">① 连热点</div></div>`;
+
+    box.innerHTML =
+      `<div class="ci-url-title">学生扫码签到（两步：先连网，再签到）</div>
+       <div class="qr-row">
+         ${wifiCard}
+         <div class="qr-card" data-qr="sign">
+           <div class="qr-img" data-big="1">${qrSvg(base, 5)}</div>
+           <div class="qr-cap">② 扫码签到</div>
+           <div class="qr-sub">${base}</div>
+         </div>
+       </div>
+       <div class="ci-url-title" style="margin-top:8px">
+         教师监控大屏：${base}/monitor ｜ 可点二维码放大投影
+       </div>`;
+
+    const setBtn = $("ciSetHot");
+    if (setBtn) setBtn.addEventListener("click", async () => {
+      const o = askHotspot();
+      if (o) showQr(urls, o);
+    });
+
+    box.querySelectorAll("[data-big]").forEach((el) =>
       el.addEventListener("click", () => {
-        const ta = document.createElement("textarea");
-        ta.value = el.dataset.url;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
-        el.textContent = el.dataset.url + " 已复制";
-        setTimeout(() => { el.textContent = el.dataset.url + " 📋"; }, 1200);
+        const svg = el.querySelector("svg");
+        if (!svg) return;
+        $("ciBigQr").innerHTML = svg.outerHTML;
+        $("ciBigQr").classList.add("open");
       })
     );
+  }
+
+  async function prepareHotspot() {
+    const W = wifi();
+    if (!W) return null;
+    try {
+      const info = await W.getHotspot();
+      if (info && info.ssid) return { ssid: info.ssid, pwd: info.password || "" };
+    } catch (e) { }
+    const manual = loadHotspotManual();
+    if (manual.ssid) return { ssid: manual.ssid, pwd: manual.pwd || "" };
+    return null;
   }
 
   function render() {
@@ -61,47 +122,37 @@
     if (!name) return;
     const time = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const exist = state.students.find((s) => (id && s.id === id) || s.name === name);
-    if (exist) {
-      exist.time = time + "（重签）";
-    } else {
-      state.students.push({ name, id, time });
-    }
+    if (exist) exist.time = time + "（重签）";
+    else state.students.push({ name, id, time });
     render();
     if (navigator.vibrate) navigator.vibrate(80);
   }
 
   async function start() {
-    const Ble = ble();
-    const Wifi = wifi();
-    if (!Ble && !Wifi) { status("教师端仅支持安卓 App", false); return; }
-
-    let bleOk = false;
-    if (Ble) {
-      try {
-        const info = await Ble.isAvailable();
-        if (info.available && info.enabled) { await Ble.start(); bleOk = true; }
-      } catch (e) { /* 蓝牙不可用不阻塞 WiFi 通道 */ }
-    }
-
+    const W = wifi();
+    if (!W) { status("教师端仅支持安卓 App", false); return; }
     try {
-      if (Wifi) {
-        const info = await Wifi.start();
-        showUrl(info.ips, info.port);
+      const info = await W.start();
+      const ips = (info.ips || []).filter((ip) => ip);
+      if (!ips.length) {
+        status("服务已启动，但未获取到本机 IP，请开启热点后重试", false);
+        state.running = true; state.students = []; render();
+        $("ciGo").textContent = "停止签到";
+        return;
       }
+      state.running = true;
+      state.students = [];
+      render();
+      $("ciGo").textContent = "停止签到";
+      status("签到进行中 · 等待学生扫码", true);
+      const hotspot = await prepareHotspot();
+      showQr(ips, hotspot);
     } catch (e) {
-      status("WiFi 服务启动失败：" + (e && e.message ? e.message : "未知"), false);
-      return;
+      status("启动失败：" + (e && e.message ? e.message : "未知"), false);
     }
-
-    state.running = true;
-    state.students = [];
-    render();
-    $("ciGo").textContent = "停止签到";
-    status(bleOk ? "签到进行中 · 蓝牙+WiFi 双通道" : "签到进行中 · WiFi 通道（蓝牙未开启）", true);
   }
 
   async function stop() {
-    try { if (ble()) await ble().stop(); } catch (e) { }
     try { if (wifi()) await wifi().stop(); } catch (e) { }
     state.running = false;
     $("ciGo").textContent = "开始签到";
@@ -138,13 +189,12 @@
     $("ciOverlay").addEventListener("click", (e) => {
       if (e.target.id === "ciOverlay") $("ciClose").click();
     });
+    $("ciBigQr").addEventListener("click", () => $("ciBigQr").classList.remove("open"));
     $("ciGo").addEventListener("click", () => (state.running ? stop() : start()));
     $("ciCopy").addEventListener("click", copyList);
 
-    const Ble = ble();
-    if (Ble && Ble.addListener) Ble.addListener("checkin", onCheckin);
-    const Wifi = wifi();
-    if (Wifi && Wifi.addListener) Wifi.addListener("checkin", onCheckin);
+    const W = wifi();
+    if (W && W.addListener) W.addListener("checkin", onCheckin);
     render();
   }
 

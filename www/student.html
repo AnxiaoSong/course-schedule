@@ -34,11 +34,7 @@
     }
     button:active { transform: scale(.98); }
     button:disabled { opacity: .5; box-shadow: none; }
-    button.alt {
-      background: #fff; color: var(--brand); border: 1.5px solid var(--brand);
-      box-shadow: none; margin-top: 10px; font-size: 14px;
-    }
-    .msg { margin-top: 16px; font-size: 13px; min-height: 20px; color: var(--muted); }
+    .msg { margin-top:16px; font-size: 13px; min-height: 20px; color: var(--muted); }
     .msg.ok { color: #12b76a; font-weight: 700; }
     .msg.err { color: #e5484d; }
     .mode-tag {
@@ -48,46 +44,49 @@
     .ok-big { display: none; margin: 10px 0; font-size: 52px; }
     .done .ok-big { display: block; animation: pop .3s ease; }
     @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .guide { display: none; text-align: left; font-size: 13px; color: #444d5e; line-height: 2; }
+    .guide b { color: var(--brand); }
   </style>
 </head>
 <body>
   <div class="card" id="card">
     <div class="ok-big">✅</div>
     <h1>课堂签到</h1>
-    <p class="sub" id="sub">连接老师的热点后填写信息签到</p>
-    <span class="mode-tag" id="modeTag">WiFi 签到</span>
-    <input id="id" type="text" inputmode="numeric" maxlength="12" placeholder="学号" autocomplete="off" />
-    <input id="name" type="text" maxlength="20" placeholder="姓名" autocomplete="off" />
-    <button id="go" type="button">签 到</button>
-    <button id="ble" type="button" class="alt" hidden>使用蓝牙签到</button>
-    <div class="msg" id="msg"></div>
+    <p class="sub" id="sub">填写学号与姓名提交签到</p>
+    <span class="mode-tag">扫码签到</span>
+
+    <div id="form">
+      <input id="id" type="text" inputmode="numeric" maxlength="12" placeholder="学号" autocomplete="off" />
+      <input id="name" type="text" maxlength="20" placeholder="姓名" autocomplete="off" />
+      <button id="go" type="button">签 到</button>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <div class="guide" id="guide">
+      此页面为签到引导页。请按教室屏幕指引：<br />
+      <b>①</b> 扫描屏幕左侧二维码，连接老师的热点<br />
+      <b>②</b> 连接成功后，扫描屏幕右侧二维码打开签到页<br />
+      <b>③</b> 填写学号与姓名，点击签到
+    </div>
   </div>
 
   <script>
     "use strict";
-    var SERVICE = "5f6d7a81-9b3c-4d2e-8a1f-0c5b4e3d2f10";
-    var CHAR = "5f6d7a82-9b3c-4d2e-8a1f-0c5b4e3d2f10";
     var idEl = document.getElementById("id");
     var nameEl = document.getElementById("name");
     var goEl = document.getElementById("go");
-    var bleEl = document.getElementById("ble");
     var msgEl = document.getElementById("msg");
     var cardEl = document.getElementById("card");
 
-    idEl.value = localStorage.getItem("ci-student-id") || "";
-    nameEl.value = localStorage.getItem("ci-student-name") || "";
-
-    // 模式判定：由 App 内置服务器提供（http://IP:8080）→ WiFi 模式；GitHub Pages → 蓝牙模式
-    var wifiMode = location.protocol === "http:" && !/github\.io/i.test(location.hostname);
-    if (!wifiMode) {
-      document.getElementById("modeTag").textContent = "蓝牙签到";
-      document.getElementById("sub").textContent = "通过蓝牙连接老师设备完成签到";
-      bleEl.hidden = false;
-      goEl.textContent = "连接并签到";
-      if (!navigator.bluetooth) {
-        say("当前浏览器不支持 Web 蓝牙，请连老师热点后打开老师提供的网址", "err");
-        goEl.disabled = true;
-      }
+    // 非局域网（如 GitHub Pages 引导页）→ 显示使用指引，隐藏表单
+    var localMode = location.protocol === "http:" && !/github\.io/i.test(location.hostname);
+    if (!localMode) {
+      document.getElementById("form").style.display = "none";
+      document.getElementById("guide").style.display = "block";
+      document.getElementById("sub").textContent = "请按教室屏幕指引完成签到";
+    } else {
+      idEl.value = localStorage.getItem("ci-student-id") || "";
+      nameEl.value = localStorage.getItem("ci-student-name") || "";
     }
 
     function say(text, cls) {
@@ -95,73 +94,35 @@
       msgEl.className = "msg" + (cls ? " " + cls : "");
     }
 
-    function readInputs() {
+    goEl.addEventListener("click", async function () {
       var name = nameEl.value.trim();
       var id = idEl.value.trim();
-      if (!name) { say("请输入姓名", "err"); nameEl.focus(); return null; }
-      if (!id) { say("请输入学号", "err"); idEl.focus(); return null; }
+      if (!id) { say("请输入学号", "err"); idEl.focus(); return; }
+      if (!name) { say("请输入姓名", "err"); nameEl.focus(); return; }
       localStorage.setItem("ci-student-name", name);
       localStorage.setItem("ci-student-id", id);
-      return { name: name, id: id };
-    }
-
-    function success(who) {
-      cardEl.classList.add("done");
-      say("签到成功：" + who, "ok");
-      if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-    }
-
-    async function submitWifi() {
-      var v = readInputs();
-      if (!v) return;
       goEl.disabled = true;
       cardEl.classList.remove("done");
       try {
         var r = await fetch("/api/checkin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(v)
+          body: JSON.stringify({ id: id, name: name })
         });
         var j = await r.json();
-        if (j.ok) success(v.name + " " + v.id);
-        else say("签到失败，请重试", "err");
+        if (j.ok) {
+          cardEl.classList.add("done");
+          say("签到成功：" + name + " " + id, "ok");
+          if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+        } else {
+          say("签到失败，请重试", "err");
+        }
       } catch (e) {
-        say("无法连接签到服务，请确认已连接老师的热点/WiFi", "err");
+        say("无法连接签到服务，请确认已连接老师的热点", "err");
       } finally {
         goEl.disabled = false;
       }
-    }
-
-    async function submitBle() {
-      var v = readInputs();
-      if (!v) return;
-      goEl.disabled = true;
-      cardEl.classList.remove("done");
-      try {
-        say("请在弹窗中选择老师的蓝牙设备…");
-        var device = await navigator.bluetooth.requestDevice({
-          filters: [{ services: [SERVICE] }],
-          optionalServices: [SERVICE]
-        });
-        say("正在连接 " + (device.name || "老师设备") + " …");
-        var server = await device.gatt.connect();
-        var svc = await server.getPrimaryService(SERVICE);
-        var ch = await svc.getCharacteristic(CHAR);
-        say("正在签到…");
-        await ch.writeValue(new TextEncoder().encode(v.name + "|" + v.id));
-        server.disconnect();
-        success(v.name);
-      } catch (err) {
-        var m = err && err.message ? err.message : String(err);
-        if (/cancel|User cancelled|NotFound/i.test(m)) say("已取消，未完成签到", "err");
-        else say("签到失败：" + m + "，请靠近老师后重试", "err");
-      } finally {
-        goEl.disabled = false;
-      }
-    }
-
-    goEl.addEventListener("click", function () { wifiMode ? submitWifi() : submitBle(); });
-    bleEl.addEventListener("click", submitBle);
+    });
   </script>
 </body>
 </html>
