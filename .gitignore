@@ -2,6 +2,8 @@ node_modules/
 tools/
 名单/
 hotspot.json
+frp/frpc.toml
+frp/frpc.exe
 android/.gradle/
 android/build/
 android/app/build/

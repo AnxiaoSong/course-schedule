@@ -80,7 +80,7 @@
     fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
       var ips = info.ips || [];
       var ip = ips[0] || "localhost";
-      serverBase = "http://" + ip + ":" + info.port;
+      serverBase = info.publicUrl || ("http://" + ip + ":" + info.port);
       document.getElementById("signQr").innerHTML = qrSvg(serverBase, 7);
       document.getElementById("signNote").textContent = serverBase;
       document.getElementById("urlText").textContent = serverBase;

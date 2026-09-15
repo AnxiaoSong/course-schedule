@@ -6,6 +6,7 @@ const path = require("path");
 const os = require("os");
 
 const PORT = Number(process.argv[2]) || 8080;
+const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const WWW = path.join(__dirname, "www");
 
 const MIME = {
@@ -128,7 +129,11 @@ const server = http.createServer((req, res) => {
   }
 
   if (method === "GET" && p === "/api/info") {
-    respond(res, 200, "application/json", JSON.stringify({ ips: localIps(), port: PORT }));
+    respond(res, 200, "application/json", JSON.stringify({
+      ips: localIps(),
+      port: PORT,
+      publicUrl: PUBLIC_URL,
+    }));
     return;
   }
 
