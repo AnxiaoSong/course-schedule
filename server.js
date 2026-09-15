@@ -17,6 +17,12 @@ const MIME = {
 };
 
 let checkins = [];
+let hotspot = { ssid: "", pwd: "" };
+const HOTSPOT_FILE = path.join(__dirname, "hotspot.json");
+
+try {
+  hotspot = JSON.parse(fs.readFileSync(HOTSPOT_FILE, "utf8")) || hotspot;
+} catch (e) { }
 
 function localIps() {
   const ips = [];
@@ -123,6 +129,25 @@ const server = http.createServer((req, res) => {
 
   if (method === "GET" && p === "/api/info") {
     respond(res, 200, "application/json", JSON.stringify({ ips: localIps(), port: PORT }));
+    return;
+  }
+
+  if (method === "GET" && p === "/api/hotspot") {
+    respond(res, 200, "application/json", JSON.stringify(hotspot));
+    return;
+  }
+
+  if (method === "POST" && p === "/api/hotspot") {
+    readBody(req, (body) => {
+      let data = {};
+      try { data = JSON.parse(body || "{}"); } catch (e) { }
+      hotspot = {
+        ssid: String(data.ssid || "").trim().slice(0, 40),
+        pwd: String(data.pwd || "").trim().slice(0, 40),
+      };
+      fs.writeFile(HOTSPOT_FILE, JSON.stringify(hotspot), () => { });
+      respond(res, 200, "application/json", JSON.stringify({ ok: true, hotspot }));
+    });
     return;
   }
 

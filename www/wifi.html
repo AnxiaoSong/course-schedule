@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>连接课堂热点</title>
+  <style>
+    :root { --brand: #07c160; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; min-height: 100vh; background: #f2f4f8; color: #1f2430;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .card {
+      width: 100%; max-width: 400px; background: #fff; border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(28, 39, 71, .10); padding: 24px 20px; text-align: center;
+    }
+    h1 { margin: 0 0 4px; font-size: 19px; }
+    .sub { margin: 0 0 18px; font-size: 12px; color: #8a93a3; }
+    .wx-tip {
+      display: none; background: #07c160; color: #fff; border-radius: 10px;
+      padding: 10px 12px; font-size: 13px; margin-bottom: 14px; line-height: 1.6;
+    }
+    .row {
+      display: flex; align-items: center; justify-content: space-between;
+      border: 1.5px solid #e6e9ef; border-radius: 12px; padding: 12px 14px;
+      margin-bottom: 10px; text-align: left;
+    }
+    .row .k { font-size: 11px; color: #8a93a3; }
+    .row .v { font-size: 16px; font-weight: 700; word-break: break-all; }
+    .row button {
+      border: 0; background: #eef2ff; color: #3b5bdb; font-size: 12px; font-weight: 700;
+      border-radius: 8px; padding: 7px 12px; cursor: pointer; font-family: inherit; flex: 0 0 auto;
+    }
+    .primary {
+      width: 100%; border: 0; border-radius: 12px; padding: 14px 0;
+      background: linear-gradient(135deg, #3b5bdb, #7c5cfa); color: #fff;
+      font-size: 16px; font-weight: 700; letter-spacing: 1px; font-family: inherit; cursor: pointer;
+      margin-top: 6px; box-shadow: 0 8px 20px rgba(59, 91, 219, .35);
+    }
+    .primary:active { transform: scale(.98); }
+    .steps { margin-top: 16px; text-align: left; font-size: 13px; color: #5b6473; line-height: 2.1; }
+    .steps b { color: #3b5bdb; }
+    .msg { margin-top: 10px; font-size: 12px; color: #12b76a; font-weight: 700; min-height: 16px; }
+    .noset { color: #8a93a3; font-size: 14px; padding: 30px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>连接课堂热点</h1>
+    <p class="sub">半自动连接：密码已复制，选热点粘贴即可</p>
+    <div class="wx-tip" id="wxTip">请点右上角 <b>···</b> 选择「<b>在浏览器打开</b>」，下面的按钮才能自动跳转 WiFi 设置</div>
+
+    <div id="main">
+      <div class="row">
+        <div><div class="k">WiFi 名称</div><div class="v" id="ssid">-</div></div>
+      </div>
+      <div class="row">
+        <div><div class="k">WiFi 密码（点击复制）</div><div class="v" id="pwd">-</div></div>
+        <button id="copyBtn" type="button">复制</button>
+      </div>
+      <button class="primary" id="openBtn" type="button">打开 WiFi 设置</button>
+      <div class="msg" id="msg"></div>
+      <div class="steps">
+        <b>①</b> 点击「打开 WiFi 设置」跳到手机 WiFi 列表<br />
+        <b>②</b> 选择上方名称的热点<br />
+        <b>③</b> 在密码框<b>长按 → 粘贴</b>（已自动复制）→ 连接<br />
+        连上后返回，扫描教室屏幕第②步码签到
+      </div>
+    </div>
+
+    <div class="noset" id="noset" style="display:none">教师尚未设置热点，请等待老师配置后重试</div>
+  </div>
+
+  <script>
+    "use strict";
+    var isWeixin = /MicroMessenger/i.test(navigator.userAgent);
+    var isIOS = /iPhone|iPad/i.test(navigator.userAgent);
+    if (isWeixin && !isIOS) document.getElementById("wxTip").style.display = "block";
+
+    function copyText(text) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { }
+      ta.remove();
+      return ok;
+    }
+
+    fetch("/api/hotspot").then(function (r) { return r.json(); }).then(function (hs) {
+      if (!hs || !hs.ssid) {
+        document.getElementById("main").style.display = "none";
+        document.getElementById("noset").style.display = "block";
+        return;
+      }
+      document.getElementById("ssid").textContent = hs.ssid;
+      document.getElementById("pwd").textContent = hs.pwd || "（无密码）";
+      if (hs.pwd) {
+        var ok = copyText(hs.pwd);
+        document.getElementById("msg").textContent = ok ? "✅ 密码已自动复制，粘贴即可" : "点击右侧「复制」按钮复制密码";
+      }
+    }).catch(function () {
+      document.getElementById("main").style.display = "none";
+      document.getElementById("noset").style.display = "block";
+    });
+
+    document.getElementById("copyBtn").addEventListener("click", function () {
+      var pwd = document.getElementById("pwd").textContent;
+      if (pwd && pwd !== "-" && pwd !== "（无密码）") {
+        copyText(pwd);
+        document.getElementById("msg").textContent = "✅ 密码已复制";
+      }
+    });
+
+    document.getElementById("openBtn").addEventListener("click", function () {
+      if (isIOS) {
+        document.getElementById("msg").textContent = "请手动打开：设置 → 无线局域网，选择热点后粘贴密码";
+        return;
+      }
+      location.href = "intent://settings/wifi#Intent;scheme=android.settings.WIFI_SETTINGS;end";
+      setTimeout(function () {
+        document.getElementById("msg").textContent = "未跳转？请手动打开：设置 → WLAN，选择热点后粘贴密码";
+      }, 1500);
+    });
+  </script>
+</body>
+</html>

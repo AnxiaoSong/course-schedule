@@ -1,6 +1,7 @@
 node_modules/
 tools/
 名单/
+hotspot.json
 android/.gradle/
 android/build/
 android/app/build/
