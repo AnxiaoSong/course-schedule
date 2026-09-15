@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>签到投影</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: #0f1428; color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 30px; gap: 26px;
+    }
+    h1 { margin: 0; font-size: 34px; letter-spacing: 2px; }
+    .sub { color: #8a93a3; font-size: 16px; margin: -10px 0 0; }
+    .cards { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+    .card {
+      background: #fff; border-radius: 18px; padding: 22px 22px 14px;
+      text-align: center; color: #1f2430; min-width: 260px;
+    }
+    .card .step {
+      display: inline-block; background: #3b5bdb; color: #fff;
+      font-size: 15px; font-weight: 700; border-radius: 20px; padding: 4px 16px;
+    }
+    .card .qr { margin: 14px 0 8px; }
+    .card .qr svg { width: 240px; height: 240px; display: block; }
+    .card .cap { font-size: 19px; font-weight: 800; }
+    .card .note { font-size: 13px; color: #5b6473; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; }
+    .setup { color: #8a93a3; font-size: 13px; cursor: pointer; text-decoration: underline; }
+    .setup:hover { color: #fff; }
+    .hint { color: #5b6473; font-size: 14px; text-align: center; line-height: 2; }
+  </style>
+</head>
+<body>
+  <h1>课堂签到</h1>
+  <p class="sub">两步完成：先连热点，再扫码签到</p>
+  <div class="cards">
+    <div class="card" id="wifiCard">
+      <span class="step">第 1 步</span>
+      <div class="qr" id="wifiQr"></div>
+      <div class="cap">扫码连接热点</div>
+      <div class="note" id="wifiNote"></div>
+      <div class="setup" id="wifiSetup">设置热点名称/密码（可选）</div>
+    </div>
+    <div class="card">
+      <span class="step">第 2 步</span>
+      <div class="qr" id="signQr"></div>
+      <div class="cap">扫码打开签到页</div>
+      <div class="note" id="signNote"></div>
+    </div>
+  </div>
+  <p class="hint">无法扫码？连上热点后，用浏览器直接访问：<b id="urlText" style="color:#4ade80"></b></p>
+
+  <script src="/lib/qrcode.js"></script>
+  <script src="/lib/qrcode_UTF8.js"></script>
+  <script>
+    "use strict";
+    function qrSvg(text, size) {
+      var qr = qrcode(0, "M");
+      qr.addData(text);
+      qr.make();
+      return qr.createSvgTag({ cellSize: size, margin: 2 });
+    }
+    function escWifi(s) {
+      return String(s || "").replace(/([\\;,":])/g, "\\$1");
+    }
+
+    fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
+      var ips = info.ips || [];
+      var ip = ips[0] || "localhost";
+      var base = "http://" + ip + ":" + info.port;
+      document.getElementById("signQr").innerHTML = qrSvg(base, 7);
+      document.getElementById("signNote").textContent = base;
+      document.getElementById("urlText").textContent = base;
+    }).catch(function () {
+      document.getElementById("signQr").innerHTML = "<p>无法获取服务器地址</p>";
+    });
+
+    function renderWifi() {
+      var hs = {};
+      try { hs = JSON.parse(localStorage.getItem("proj-hotspot") || "{}"); } catch (e) { }
+      if (!hs.ssid) {
+        document.getElementById("wifiQr").innerHTML =
+          "<p style='color:#8a93a3;padding:80px 0'>未设置热点<br>（如学生已连同一 WiFi 可跳过）</p>";
+        document.getElementById("wifiNote").textContent = "";
+        return;
+      }
+      var text = "WIFI:T:WPA;S:" + escWifi(hs.ssid) + ";P:" + escWifi(hs.pwd || "") + ";;";
+      document.getElementById("wifiQr").innerHTML = qrSvg(text, 7);
+      document.getElementById("wifiNote").textContent = hs.ssid;
+    }
+
+    document.getElementById("wifiSetup").addEventListener("click", function () {
+      var hs = {};
+      try { hs = JSON.parse(localStorage.getItem("proj-hotspot") || "{}"); } catch (e) { }
+      var ssid = prompt("热点名称（学生连接的 WiFi 名，留空则清除）", hs.ssid || "");
+      if (ssid === null) return;
+      if (!ssid.trim()) { localStorage.removeItem("proj-hotspot"); renderWifi(); return; }
+      var pwd = prompt("热点密码", hs.pwd || "");
+      if (pwd === null) return;
+      localStorage.setItem("proj-hotspot", JSON.stringify({ ssid: ssid.trim(), pwd: pwd }));
+      renderWifi();
+    });
+
+    renderWifi();
+  </script>
+</body>
+</html>
