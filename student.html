@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>签到 · 学生端</title>
+  <style>
+    :root { --brand: #3b5bdb; --ink: #1f2430; --muted: #8a93a3; --line: #e6e9ef; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; min-height: 100vh; background: #f2f4f8; color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .card {
+      width: 100%; max-width: 400px; background: #fff; border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(28, 39, 71, .10); padding: 26px 22px; text-align: center;
+    }
+    h1 { margin: 0 0 6px; font-size: 20px; }
+    .sub { margin: 0 0 20px; font-size: 12px; color: var(--muted); }
+    input {
+      width: 100%; border: 1.5px solid var(--line); border-radius: 12px;
+      padding: 13px 14px; font-size: 16px; outline: none; text-align: center;
+      font-family: inherit; margin-top: 10px;
+    }
+    input:first-of-type { margin-top: 0; }
+    input:focus { border-color: var(--brand); }
+    input::placeholder { color: #b9c0cc; }
+    button {
+      width: 100%; margin-top: 14px; border: 0; border-radius: 12px; padding: 14px 0;
+      background: linear-gradient(135deg, #3b5bdb, #7c5cfa); color: #fff;
+      font-size: 16px; font-weight: 700; letter-spacing: 2px; font-family: inherit; cursor: pointer;
+      box-shadow: 0 8px 20px rgba(59, 91, 219, .35);
+    }
+    button:active { transform: scale(.98); }
+    button:disabled { opacity: .5; box-shadow: none; }
+    .msg { margin-top:16px; font-size: 13px; min-height: 20px; color: var(--muted); }
+    .msg.ok { color: #12b76a; font-weight: 700; }
+    .msg.err { color: #e5484d; }
+    .mode-tag {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px;
+      border-radius: 20px; background: #e7f8ef; color: #0b6b3a; margin-bottom: 12px;
+    }
+    .ok-big { display: none; margin: 10px 0; font-size: 52px; }
+    .done .ok-big { display: block; animation: pop .3s ease; }
+    @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .guide { display: none; text-align: left; font-size: 13px; color: #444d5e; line-height: 2; }
+    .guide b { color: var(--brand); }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="ok-big">✅</div>
+    <h1>课堂签到</h1>
+    <p class="sub" id="sub">输入学号提交签到</p>
+    <span class="mode-tag">扫码签到</span>
+
+    <div id="form">
+      <input id="id" type="text" inputmode="numeric" maxlength="12" placeholder="学号" autocomplete="off" />
+      <button id="go" type="button">签 到</button>
+      <div class="msg" id="msg"></div>
+    </div>
+
+    <div class="guide" id="guide">
+      此页面为签到引导页。请按教室屏幕指引：<br />
+      <b>①</b> 扫描屏幕左侧二维码，连接老师的热点<br />
+      <b>②</b> 连接成功后，扫描屏幕右侧二维码打开签到页<br />
+      <b>③</b> 输入学号，点击签到
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+    var idEl = document.getElementById("id");
+    var goEl = document.getElementById("go");
+    var msgEl = document.getElementById("msg");
+    var cardEl = document.getElementById("card");
+
+    // 设备指纹：首次签到时与学号绑定，防止代签/冒签
+    var device = localStorage.getItem("ci-device");
+    if (!device) {
+      device = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID().replace(/-/g, "")
+        : "d" + Date.now() + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("ci-device", device);
+    }
+
+    // 只有 GitHub Pages（anxiaosong.github.io）显示引导页；正式域名/局域网地址直接显示签到表单
+    var localMode = !/github\.io/i.test(location.hostname);
+    if (!localMode) {
+      document.getElementById("form").style.display = "none";
+      document.getElementById("guide").style.display = "block";
+      document.getElementById("sub").textContent = "请按教室屏幕指引完成签到";
+    } else {
+      idEl.value = localStorage.getItem("ci-student-id") || "";
+    }
+
+    function say(text, cls) {
+      msgEl.textContent = text;
+      msgEl.className = "msg" + (cls ? " " + cls : "");
+    }
+
+    function getPosition() {
+      return new Promise(function (resolve, reject) {
+        if (!navigator.geolocation) { reject(new Error("当前浏览器不支持定位")); return; }
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        }, function (err) {
+          reject(new Error(err.code === 1 ? "请允许定位权限后签到" : "定位失败，请开启 GPS/定位服务后重试"));
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+      });
+    }
+
+    goEl.addEventListener("click", async function () {
+      var id = idEl.value.trim();
+      if (!id) { say("请输入学号", "err"); idEl.focus(); return; }
+      localStorage.setItem("ci-student-id", id);
+      goEl.disabled = true;
+      cardEl.classList.remove("done");
+      try {
+        var body = { id: id, device: device };
+        var j = await submit(body);
+        if (j && j.ok === false && j.msg === "请允许获取定位后签到") {
+          say("正在获取定位…");
+          var pos = await getPosition();
+          body.lat = pos.lat;
+          body.lng = pos.lng;
+          j = await submit(body);
+        }
+        if (j.ok) {
+          cardEl.classList.add("done");
+          say("签到成功：" + j.name + (j.cls ? "（" + j.cls + "）" : "") + (j.dist >= 0 ? " · 距教室 " + j.dist + " 米" : ""), "ok");
+          if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+        } else {
+          say(j.msg || "签到失败，请重试", "err");
+        }
+      } catch (locErr) {
+        say(locErr.message || "签到失败，请重试", "err");
+      } finally {
+        goEl.disabled = false;
+      }
+    });
+
+    async function submit(body) {
+      var r = await fetch("/api/checkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      return r.json();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>签到投影 · 教师端</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; background: #0f1428; color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px; gap: 18px;
+    }
+    h1 { margin: 0; font-size: 30px; letter-spacing: 2px; }
+    .sub { color: #8a93a3; font-size: 14px; margin: -8px 0 0; }
+
+    .timer {
+      font-size: 64px; font-weight: 800; font-family: ui-monospace, Consolas, monospace;
+      letter-spacing: 4px; color: #4ade80; line-height: 1;
+    }
+    .timer.warn { color: #ffd166; }
+    .timer.urgent { color: #ff6b6b; animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity: .35; } }
+    .timer-cap { font-size: 13px; color: #8a93a3; }
+
+    .main { display: flex; gap: 26px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .card {
+      background: #fff; border-radius: 20px; padding: 20px 26px 16px;
+      text-align: center; color: #1f2430;
+    }
+    .qr svg { width: min(38vh, 280px); height: min(38vh, 280px); display: block; }
+    .cap { font-size: 19px; font-weight: 800; margin-top: 10px; }
+    .note { font-size: 13px; color: #5b6473; margin-top: 4px; font-family: ui-monospace, Consolas, monospace; }
+    .count { font-size: 15px; color: #3b5bdb; font-weight: 700; margin-top: 8px; }
+
+    .ctrl { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: 240px; }
+    .mins { display: flex; gap: 8px; justify-content: center; }
+    .min-btn {
+      border: 1.5px solid #3a4468; background: transparent; color: #aab4d4;
+      border-radius: 10px; padding: 8px 0; font-size: 14px; cursor: pointer; font-family: inherit; flex: 1;
+    }
+    .min-btn.on { background: #3b5bdb; border-color: #3b5bdb; color: #fff; font-weight: 700; }
+    .btn {
+      border: 0; border-radius: 12px; padding: 14px 0; font-size: 16px; font-weight: 700;
+      letter-spacing: 2px; cursor: pointer; font-family: inherit;
+    }
+    .btn.go { background: linear-gradient(135deg, #0e9f6e, #12b76a); color: #fff; }
+    .btn.stop { background: #ff6b6b; color: #fff; }
+    .btn.ghost { background: transparent; border: 1.5px solid #3a4468; color: #aab4d4; }
+    .saved { font-size: 13px; color: #4ade80; text-align: center; min-height: 18px; }
+    .hint { color: #5b6473; font-size: 13px; text-align: center; line-height: 1.9; }
+    .hint b { color: #4ade80; }
+    .disabled-qr { filter: grayscale(1) opacity(.5); }
+  </style>
+</head>
+<body>
+  <h1>课堂签到</h1>
+  <p class="sub">扫码进入签到页，输入学号提交（姓名班级自动匹配）</p>
+
+  <div class="timer" id="timer">--:--</div>
+  <div class="timer-cap" id="timerCap">未开始</div>
+
+  <div class="main">
+    <div class="card">
+      <div class="qr" id="signQr"></div>
+      <div class="cap">扫码签到</div>
+      <div class="note" id="signNote"></div>
+      <div class="count" id="count">已签到 0 人</div>
+    </div>
+
+    <div class="ctrl">
+      <div class="mins" id="mins">
+        <button class="min-btn" data-m="3">3分钟</button>
+        <button class="min-btn on" data-m="5">5分钟</button>
+        <button class="min-btn" data-m="10">10分钟</button>
+        <button class="min-btn" data-m="15">15分钟</button>
+      </div>
+      <button class="btn go" id="goBtn">开始签到</button>
+      <button class="btn ghost" id="geoBtn">📍 设置教室位置（500米内有效）</button>
+      <button class="btn ghost" id="openMon" onclick="location.href='monitor.html'">打开监控页</button>
+      <div class="saved" id="saved"></div>
+    </div>
+  </div>
+
+  <p class="hint" id="hint">选择时长后点击「开始签到」；倒计时结束自动停止签到并保存 CSV 文件到教师电脑<br>无法扫码？浏览器直接访问：<b id="urlText"></b></p>
+
+  <script src="/lib/qrcode.js"></script>
+  <script src="/lib/qrcode_UTF8.js"></script>
+  <script src="/lib/auth.js"></script>
+  <script>
+    "use strict";
+    var FALLBACK = "https://ai-song.online";
+    var API = FALLBACK;
+    var selMinutes = 5;
+    var running = false;
+    var remainSec = 0;
+    var tickTimer = null;
+
+    function qrSvg(text, size) {
+      var qr = qrcode(0, "M");
+      qr.addData(text);
+      qr.make();
+      return qr.createSvgTag({ cellSize: size, margin: 2 });
+    }
+
+    function joinUrl(base) {
+      return String(base || "").replace(/\/+$/, "") + "/student";
+    }
+
+    function renderQr(base) {
+      var url = joinUrl(base);
+      document.getElementById("signQr").innerHTML = qrSvg(url, 8);
+      document.getElementById("signNote").textContent = url;
+      document.getElementById("urlText").textContent = url;
+    }
+
+    function fmt(s) {
+      var m = Math.floor(s / 60), r = s % 60;
+      return (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r;
+    }
+
+    function renderTimer() {
+      var el = document.getElementById("timer");
+      var cap = document.getElementById("timerCap");
+      if (running) {
+        el.textContent = fmt(remainSec);
+        el.className = "timer" + (remainSec <= 60 ? (remainSec <= 10 ? " urgent" : " warn") : "");
+        cap.textContent = "签到进行中";
+        document.getElementById("goBtn").textContent = "提前结束并保存";
+        document.getElementById("goBtn").className = "btn stop";
+        document.getElementById("signQr").classList.remove("disabled-qr");
+      } else {
+        el.textContent = "--:--";
+        el.className = "timer";
+        cap.textContent = lastEnded ? "签到已结束" : "未开始";
+        document.getElementById("goBtn").textContent = "开始签到";
+        document.getElementById("goBtn").className = "btn go";
+        document.getElementById("signQr").classList.add("disabled-qr");
+      }
+    }
+
+    var lastEnded = false;
+
+    async function poll() {
+      try {
+        var r = await TeacherAuth.api(API + "/api/status", { cache: "no-store" });
+        var j = await r.json();
+        if (j && j.ok === false && j.msg === "unauthorized") { await TeacherAuth.ensureAuth(API); return; }
+        document.getElementById("count").textContent = "已签到 " + j.total + " 人";
+        if (j.active) {
+          running = true;
+          lastEnded = false;
+          remainSec = j.remainSec;
+        } else {
+          if (running) lastEnded = true;
+          running = false;
+          if (j.lastCsvFile) document.getElementById("saved").textContent = "已保存：" + j.lastCsvFile;
+        }
+        renderTimer();
+      } catch (e) { }
+    }
+
+    document.getElementById("mins").addEventListener("click", function (e) {
+      var b = e.target.closest(".min-btn");
+      if (!b || running) return;
+      selMinutes = Number(b.getAttribute("data-m"));
+      document.querySelectorAll(".min-btn").forEach(function (x) { x.classList.remove("on"); });
+      b.classList.add("on");
+    });
+
+    document.getElementById("goBtn").addEventListener("click", async function () {
+      if (running) {
+        if (!confirm("确定提前结束签到并保存名单？")) return;
+        await TeacherAuth.api(API + "/api/end", { method: "POST" });
+        lastEnded = true;
+        running = false;
+        poll();
+      } else {
+        await TeacherAuth.api(API + "/api/start", {
+          method: "POST",
+          body: JSON.stringify({ minutes: selMinutes })
+        });
+        running = true;
+        lastEnded = false;
+        remainSec = selMinutes * 60;
+        document.getElementById("saved").textContent = "";
+        poll();
+      }
+    });
+
+    document.getElementById("geoBtn").addEventListener("click", function () {
+      if (!navigator.geolocation) { alert("当前设备不支持定位"); return; }
+      if (!confirm("将在当前位置设置签到有效范围（默认500米）。请确认教师机在教室内，继续？")) return;
+      document.getElementById("geoBtn").textContent = "定位中…";
+      navigator.geolocation.getCurrentPosition(async function (pos) {
+        try {
+          var r = await TeacherAuth.api(API + "/api/classroom", {
+            method: "POST",
+            body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude, radius: 500 })
+          });
+          var j = await r.json();
+          if (j.ok) {
+            loadClassroom();
+          } else {
+            alert("设置失败：" + (j.msg || "未知"));
+          }
+        } catch (e) { alert("设置失败：无法连接服务器"); }
+        document.getElementById("geoBtn").textContent = "📍 设置教室位置（500米内有效）";
+      }, function (err) {
+        alert(err.code === 1 ? "定位权限被拒绝，请在浏览器中允许定位" : "定位失败，请重试");
+        document.getElementById("geoBtn").textContent = "📍 设置教室位置（500米内有效）";
+      }, { enableHighAccuracy: true, timeout: 12000 });
+    });
+
+    async function loadClassroom() {
+      try {
+        var r = await TeacherAuth.api(API + "/api/classroom", { cache: "no-store" });
+        var j = await r.json();
+        var el = document.getElementById("geoBtn");
+        if (j.classroom) {
+          var c = j.classroom;
+          el.textContent = "📍 教室已设置（" + c.lat.toFixed(5) + "," + c.lng.toFixed(5) + " · " + c.radius + "米）点击重设";
+        } else {
+          el.textContent = "📍 设置教室位置（500米内有效）";
+        }
+      } catch (e) { }
+    }
+
+    // API 基址：本地服务器优先，失败回退云域名；教师授权
+    (function init() {
+      fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
+        API = "";
+        var ips = info.ips || [];
+        var base = info.publicUrl || ("http://" + (ips[0] || "localhost") + ":" + info.port);
+        renderQr(base);
+        afterBase();
+      }).catch(function () {
+        renderQr(FALLBACK);
+        afterBase();
+      });
+      function afterBase() {
+        TeacherAuth.ensureAuth(API).then(function () {
+          poll();
+          loadClassroom();
+        });
+      }
+    })();
+
+    setInterval(function () { poll(); }, 2000);
+  </script>
+</body>
+</html>

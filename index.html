@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>课堂签到 · 教师入口</title>
+  <style>
+    :root { --brand: #3b5bdb; --muted: #8a93a3; --line: #e6e9ef; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; min-height: 100vh; background: #f2f4f8; color: #1f2430;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wrap { width: 100%; max-width: 420px; }
+    h1 { margin: 0 0 4px; font-size: 22px; text-align: center; }
+    .sub { margin: 0 0 22px; font-size: 13px; color: var(--muted); text-align: center; }
+    a.card {
+      display: flex; align-items: center; gap: 14px;
+      background: #fff; border-radius: 16px; padding: 20px 18px; margin-bottom: 14px;
+      text-decoration: none; color: #1f2430;
+      box-shadow: 0 6px 18px rgba(28, 39, 71, .08);
+      transition: transform .12s ease;
+    }
+    a.card:active { transform: scale(.98); }
+    .icon {
+      width: 52px; height: 52px; border-radius: 14px; flex: 0 0 auto;
+      display: flex; align-items: center; justify-content: center; font-size: 26px;
+    }
+    .icon.qr { background: #eef2ff; }
+    .icon.mn { background: #e7f8ef; }
+    .t { font-size: 17px; font-weight: 700; }
+    .d { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .tip {
+      background: #fff7e6; border: 1px solid #ffe1a8; color: #9a5b06;
+      border-radius: 12px; padding: 10px 14px; font-size: 12px; line-height: 1.8; margin-top: 8px;
+    }
+    .url { color: #1e2a78; font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>课堂签到 · 教师入口</h1>
+    <p class="sub">线性代数课程签到系统</p>
+
+    <a class="card" href="projector.html">
+      <span class="icon qr">📱</span>
+      <span>
+        <span class="t">开始签到（投影）</span>
+        <div class="d">显示签到二维码，投屏给学生扫码</div>
+      </span>
+    </a>
+
+    <a class="card" href="monitor.html">
+      <span class="icon mn">📊</span>
+      <span>
+        <span class="t">签到监控</span>
+        <div class="d">实时查看已签到人数、学号、姓名</div>
+      </span>
+    </a>
+
+    <div class="tip">
+      使用前请确认教师电脑已双击 <b>start-cloud.bat</b> 开启服务（关闭其窗口即停止）。<br />
+      学生签到地址（扫码自动打开）：<span class="url">https://ai-song.online/student</span>
+    </div>
+  </div>
+</body>
+</html>

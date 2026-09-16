@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>签到监控 · 教师端</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: #10162b; color: #eef1f8;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      padding: 24px;
+    }
+    header { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
+    h1 { margin: 0; font-size: 24px; }
+    .total { font-size: 46px; font-weight: 800; color: #4ade80; line-height: 1; }
+    .total small { font-size: 16px; color: #8a93a3; font-weight: 400; }
+    .actions { margin-left: auto; display: flex; gap: 10px; }
+    .sess {
+      font-size: 20px; font-weight: 800; color: #4ade80;
+      font-family: ui-monospace, Consolas, monospace; letter-spacing: 1px;
+    }
+    .sess.off { color: #8a93a3; font-size: 14px; font-family: inherit; }
+    button {
+      border: 1.5px solid #3a4468; background: transparent; color: #aab4d4;
+      border-radius: 10px; padding: 9px 18px; font-size: 14px; cursor: pointer; font-family: inherit;
+    }
+    button:hover { border-color: #5b7cfa; color: #fff; }
+    button.danger { border-color: #b23b48; color: #ff9aa4; }
+    table { width: 100%; border-collapse: collapse; font-size: 19px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #232c4d; }
+    th { color: #8a93a3; font-size: 13px; font-weight: 600; }
+    td.num { color: #8a93a3; font-size: 15px; width: 56px; }
+    td.id { color: #9fb4ff; font-family: ui-monospace, Consolas, monospace; }
+    td.time { color: #8a93a3; font-size: 14px; text-align: right; }
+    td.op button.ub {
+      border: 1.5px solid #3a4468; background: transparent; color: #aab4d4;
+      border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+    }
+    td.op button.ub:hover { border-color: #5b7cfa; color: #fff; }
+    tr.new td { animation: flash 1.2s ease; }
+    @keyframes flash { from { background: #1d3a2a; } to { background: transparent; } }
+    .empty { color: #5b6473; padding: 40px 0; text-align: center; font-size: 16px; }
+    .footer { margin-top: 18px; color: #5b6473; font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>签到监控</h1>
+    <div class="total"><span id="n">0</span><small> 人已签到</small></div>
+    <div class="sess" id="sess">未开始</div>
+    <div class="actions">
+      <button id="refresh">立即刷新</button>
+      <button id="clear" class="danger">清空名单</button>
+    </div>
+  </header>
+  <table>
+    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th>班级</th><th>距离</th><th style="text-align:right">时间</th><th>操作</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="7" class="empty">暂无学生签到</td></tr></tbody>
+  </table>
+  <p class="footer">自动刷新中（2 秒） · 数据来自教师手机签到服务</p>
+
+  <script src="/lib/auth.js"></script>
+  <script>
+    "use strict";
+    var lastJson = "";
+    function render(data) {
+      document.getElementById("n").textContent = data.total;
+      var tb = document.getElementById("rows");
+      if (!data.total) {
+        tb.innerHTML = '<tr><td colspan="6" class="empty">暂无学生签到</td></tr>';
+        return;
+      }
+      tb.innerHTML = data.students.map(function (s, i) {
+        var dist = (typeof s.dist === "number" && s.dist >= 0) ? s.dist + "米" : "—";
+        return "<tr" + (i === 0 && s.isNew ? ' class="new"' : "") + ">"
+          + '<td class="num">' + (i + 1) + "</td>"
+          + '<td class="id">' + esc(s.id || "—") + "</td>"
+          + "<td>" + esc(s.name) + "</td>"
+          + "<td>" + esc(s.cls || "") + "</td>"
+          + '<td class="id">' + dist + "</td>"
+          + '<td class="time">' + esc(s.time) + "</td>"
+          + '<td class="op">' + (s.id ? '<button class="ub" data-id="' + esc(s.id) + '">解绑</button>' : "") + "</td></tr>";
+      }).join("");
+    }
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+      });
+    }
+    var local = location.protocol === "http:" && !/github\.io/i.test(location.hostname);
+    var API = local ? "" : "https://ai-song.online";
+    var connFail = 0;
+    function fmtSec(s) {
+      var m = Math.floor(s / 60), r = s % 60;
+      return (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r;
+    }
+    async function pollStatus() {
+      try {
+        var r = await TeacherAuth.api(API + "/api/status", { cache: "no-store" });
+        var j = await r.json();
+        if (j && j.ok === false) return;
+        var el = document.getElementById("sess");
+        if (j.active) {
+          el.textContent = "⏱ " + fmtSec(j.remainSec);
+          el.className = "sess";
+        } else {
+          el.textContent = j.lastCsvFile ? "已结束 · " + j.lastCsvFile : "未开始";
+          el.className = "sess off";
+        }
+      } catch (e) { }
+    }
+    function showDenied() {
+      document.getElementById("rows").innerHTML =
+        '<tr><td colspan="7" class="empty">🔒 教师页面 · 未授权<br>' +
+        (TeacherAuth.token() ? "token 无效或服务未开启" : "请在教师电脑上使用（自动授权）") + "</td></tr>";
+      document.getElementById("sess").textContent = "未授权";
+      document.getElementById("sess").className = "sess off";
+    }
+
+    async function load() {
+      try {
+        var r = await TeacherAuth.api(API + "/api/list", { cache: "no-store" });
+        var j = await r.json();
+        if (j && j.ok === false) {
+          if (j.msg === "unauthorized") {
+            var ok = await TeacherAuth.ensureAuth(API);
+            if (!ok) { showDenied(); return; }
+            load();
+            return;
+          }
+          showDenied();
+          return;
+        }
+        connFail = 0;
+        var text = JSON.stringify(j);
+        j.students.forEach(function (s, i) { s.isNew = false; });
+        if (text !== lastJson && lastJson) j.students[0] && (j.students[0].isNew = true);
+        lastJson = text;
+        render(j);
+      } catch (e) {
+        connFail++;
+        if (connFail >= 2) {
+          document.getElementById("rows").innerHTML =
+            '<tr><td colspan="6" class="empty">🔒 教师页面 · 未授权<br>' +
+            (TeacherAuth.token() ? "token 无效或服务未开启（start-cloud.bat）" : "请在教师电脑上使用（自动授权）") + "</td></tr>";
+        }
+      }
+    }
+    document.getElementById("refresh").addEventListener("click", load);
+    document.getElementById("clear").addEventListener("click", async function () {
+      if (!confirm("确定清空签到名单？")) return;
+      await TeacherAuth.api(API + "/api/clear", { method: "POST" });
+      lastJson = "";
+      load();
+    });
+    document.getElementById("rows").addEventListener("click", async function (e) {
+      var btn = e.target.closest(".ub");
+      if (!btn) return;
+      var id = btn.getAttribute("data-id");
+      if (!confirm("解绑学号 " + id + " 的设备绑定？（学生更换手机后使用）")) return;
+      await TeacherAuth.api(API + "/api/unbind", {
+        method: "POST",
+        body: JSON.stringify({ id: id })
+      });
+      load();
+    });
+    TeacherAuth.ensureAuth(API).then(function () {
+      load();
+      pollStatus();
+      setInterval(load, 2000);
+      setInterval(pollStatus, 2000);
+    });
+  </script>
+</body>
+</html>
