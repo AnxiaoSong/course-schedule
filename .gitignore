@@ -4,6 +4,7 @@ tools/
 hotspot.json
 frp/frpc.toml
 frp/frpc.exe
+frp/*.log
 android/.gradle/
 android/build/
 android/app/build/

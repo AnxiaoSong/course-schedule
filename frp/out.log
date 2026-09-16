@@ -1,6 +1,0 @@
-[1;34m2026-09-16 10:56:10.839 [I] [sub/root.go:194] start frpc service for config file [E:\opencode-data\course-schedule\frp\frpc.toml] with aggregated configuration
-[0m[1;34m2026-09-16 10:56:10.902 [I] [client/service.go:312] try to connect to server...
-[0m[1;34m2026-09-16 10:56:11.014 [I] [client/service.go:332] [8c71213a039e12a6] login to server success, get run id [8c71213a039e12a6]
-[0m[1;34m2026-09-16 10:56:11.024 [I] [proxy/proxy_manager.go:183] [8c71213a039e12a6] proxy added: [checkin]
-[0m[1;34m2026-09-16 10:56:11.055 [I] [client/control.go:174] [8c71213a039e12a6] [checkin] start proxy success
-[0m
