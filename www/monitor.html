@@ -79,21 +79,30 @@
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
       });
     }
+    var API = /github\.io/i.test(location.hostname) ? "https://ai-song.online" : "";
+    var connFail = 0;
     async function load() {
       try {
-        var r = await fetch("/api/list", { cache: "no-store" });
+        var r = await fetch(API + "/api/list", { cache: "no-store" });
         var j = await r.json();
+        connFail = 0;
         var text = JSON.stringify(j);
         j.students.forEach(function (s, i) { s.isNew = false; });
         if (text !== lastJson && lastJson) j.students[0] && (j.students[0].isNew = true);
         lastJson = text;
         render(j);
-      } catch (e) { /* 服务不可达时静默重试 */ }
+      } catch (e) {
+        connFail++;
+        if (connFail >= 2) {
+          document.getElementById("rows").innerHTML =
+            '<tr><td colspan="6" class="empty">无法连接签到服务器<br>请确认教师电脑已运行 start-cloud.bat</td></tr>';
+        }
+      }
     }
     document.getElementById("refresh").addEventListener("click", load);
     document.getElementById("clear").addEventListener("click", async function () {
       if (!confirm("确定清空签到名单？")) return;
-      await fetch("/api/clear");
+      await fetch(API + "/api/clear");
       lastJson = "";
       load();
     });
@@ -102,7 +111,7 @@
       if (!btn) return;
       var id = btn.getAttribute("data-id");
       if (!confirm("解绑学号 " + id + " 的设备绑定？（学生更换手机后使用）")) return;
-      await fetch("/api/unbind", {
+      await fetch(API + "/api/unbind", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: id })

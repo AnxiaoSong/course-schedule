@@ -46,15 +46,21 @@
       return qr.createSvgTag({ cellSize: size, margin: 2 });
     }
 
-    fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
-      var ips = info.ips || [];
-      var ip = ips[0] || "localhost";
-      var base = info.publicUrl || ("http://" + ip + ":" + info.port);
+    var FALLBACK_URL = "https://ai-song.online/";
+
+    function renderBase(base) {
       document.getElementById("signQr").innerHTML = qrSvg(base, 8);
       document.getElementById("signNote").textContent = base;
       document.getElementById("urlText").textContent = base;
+    }
+
+    fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
+      var ips = info.ips || [];
+      var ip = ips[0] || "localhost";
+      renderBase(info.publicUrl || ("http://" + ip + ":" + info.port));
     }).catch(function () {
-      document.getElementById("signQr").innerHTML = "<p>无法获取服务器地址</p>";
+      // 独立模式（GitHub Pages）：固定指向云域名
+      renderBase(FALLBACK_URL);
     });
   </script>
 </body>
