@@ -13,4 +13,5 @@ android/.idea/
 android/captures/
 *.iml
 .DS_Store
-bindings.json 
+bindings.json
+签到记录/

@@ -16,6 +16,11 @@
     .total { font-size: 46px; font-weight: 800; color: #4ade80; line-height: 1; }
     .total small { font-size: 16px; color: #8a93a3; font-weight: 400; }
     .actions { margin-left: auto; display: flex; gap: 10px; }
+    .sess {
+      font-size: 20px; font-weight: 800; color: #4ade80;
+      font-family: ui-monospace, Consolas, monospace; letter-spacing: 1px;
+    }
+    .sess.off { color: #8a93a3; font-size: 14px; font-family: inherit; }
     button {
       border: 1.5px solid #3a4468; background: transparent; color: #aab4d4;
       border-radius: 10px; padding: 9px 18px; font-size: 14px; cursor: pointer; font-family: inherit;
@@ -43,6 +48,7 @@
   <header>
     <h1>签到监控</h1>
     <div class="total"><span id="n">0</span><small> 人已签到</small></div>
+    <div class="sess" id="sess">未开始</div>
     <div class="actions">
       <button id="refresh">立即刷新</button>
       <button id="clear" class="danger">清空名单</button>
@@ -82,6 +88,24 @@
     var local = location.protocol === "http:" && !/github\.io/i.test(location.hostname);
     var API = local ? "" : "https://ai-song.online";
     var connFail = 0;
+    function fmtSec(s) {
+      var m = Math.floor(s / 60), r = s % 60;
+      return (m < 10 ? "0" : "") + m + ":" + (r < 10 ? "0" : "") + r;
+    }
+    async function pollStatus() {
+      try {
+        var r = await fetch(API + "/api/status", { cache: "no-store" });
+        var j = await r.json();
+        var el = document.getElementById("sess");
+        if (j.active) {
+          el.textContent = "⏱ " + fmtSec(j.remainSec);
+          el.className = "sess";
+        } else {
+          el.textContent = j.lastCsvFile ? "已结束 · " + j.lastCsvFile : "未开始";
+          el.className = "sess off";
+        }
+      } catch (e) { }
+    }
     async function load() {
       try {
         var r = await fetch(API + "/api/list", { cache: "no-store" });
@@ -120,7 +144,9 @@
       load();
     });
     load();
+    pollStatus();
     setInterval(load, 2000);
+    setInterval(pollStatus, 2000);
   </script>
 </body>
 </html>

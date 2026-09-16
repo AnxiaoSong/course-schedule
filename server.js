@@ -68,6 +68,50 @@ const MIME = {
 };
 
 let checkins = [];
+let session = null; // { endAt, timer }
+let lastCsvFile = "";
+const CSV_DIR = path.join(__dirname, "签到记录");
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+function writeCsv() {
+  if (!checkins.length) return "";
+  fs.mkdirSync(CSV_DIR, { recursive: true });
+  const clsCount = {};
+  checkins.forEach((c) => { if (c.cls) clsCount[c.cls] = (clsCount[c.cls] || 0) + 1; });
+  const mainCls = Object.keys(clsCount).sort((a, b) => clsCount[b] - clsCount[a])[0] || "未分类";
+  const d = new Date();
+  const fname = `签到_${mainCls}_${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}.csv`;
+  let csv = "\uFEFF序号,学号,姓名,班级,签到时间\n";
+  checkins.forEach((c, i) => {
+    csv += `${i + 1},${c.id},${c.name},${c.cls},${c.time}\n`;
+  });
+  fs.writeFileSync(path.join(CSV_DIR, fname), csv, "utf8");
+  console.log(`[csv] saved ${fname} (${checkins.length} students)`);
+  return fname;
+}
+
+function startSession(minutes) {
+  endSession(false);
+  session = {
+    endAt: Date.now() + minutes * 60000,
+    timer: setTimeout(() => endSession(true), minutes * 60000),
+  };
+  console.log(`[session] started, ${minutes} min`);
+}
+
+function endSession(save) {
+  if (!session) return null;
+  clearTimeout(session.timer);
+  session = null;
+  let saved = "";
+  if (save) {
+    saved = writeCsv();
+    lastCsvFile = saved;
+  }
+  console.log(`[session] ended${saved ? " -> " + saved : ""}`);
+  return saved;
+}
 let hotspot = { ssid: "", pwd: "" };
 const HOTSPOT_FILE = path.join(__dirname, "hotspot.json");
 const BINDINGS_FILE = path.join(__dirname, "bindings.json");
@@ -218,6 +262,10 @@ const server = http.createServer((req, res) => {
         respond(res, 400, "application/json", JSON.stringify({ ok: false, msg: "学号不在名单中，请核对后重试" }));
         return;
       }
+      if (!session) {
+        respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "签到未开始或已结束，请联系老师" }));
+        return;
+      }
       if (device) {
         if (bindings.byDevice[device] && bindings.byDevice[device] !== id) {
           respond(res, 403, "application/json", JSON.stringify({
@@ -263,6 +311,34 @@ const server = http.createServer((req, res) => {
 
   if (method === "GET" && p === "/api/list") {
     respond(res, 200, "application/json", listJson());
+    return;
+  }
+
+  if (method === "GET" && p === "/api/status") {
+    const remainSec = session ? Math.max(0, Math.ceil((session.endAt - Date.now()) / 1000)) : 0;
+    respond(res, 200, "application/json", JSON.stringify({
+      active: !!session,
+      remainSec,
+      total: checkins.length,
+      lastCsvFile,
+    }));
+    return;
+  }
+
+  if (method === "POST" && p === "/api/start") {
+    readBody(req, (body) => {
+      let data = {};
+      try { data = JSON.parse(body || "{}"); } catch (e) { }
+      const minutes = Math.min(120, Math.max(0.1, Number(data.minutes) || 5));
+      startSession(minutes);
+      respond(res, 200, "application/json", JSON.stringify({ ok: true, minutes }));
+    });
+    return;
+  }
+
+  if (method === "POST" && p === "/api/end") {
+    const saved = endSession(true);
+    respond(res, 200, "application/json", JSON.stringify({ ok: true, saved }));
     return;
   }
 
