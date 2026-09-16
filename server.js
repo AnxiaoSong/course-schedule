@@ -311,8 +311,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  let rel = p === "/" ? "student.html" : p.slice(1);
-  if (!rel.includes(".")) rel = rel + ".html";
+    let rel;
+    if (p === "/") rel = "home.html";
+    else if (p === "/student") rel = "student.html";
+    else rel = p.slice(1);
+    if (!rel.includes(".")) rel = rel + ".html";
   const buf = readFile(rel);
   if (!buf) {
     respond(res, 404, "text/html; charset=utf-8", "<h1>404</h1>");

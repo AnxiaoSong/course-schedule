@@ -48,10 +48,15 @@
 
     var FALLBACK_URL = "https://ai-song.online/";
 
+    function joinUrl(base) {
+      return String(base || "").replace(/\/+$/, "") + "/student";
+    }
+
     function renderBase(base) {
-      document.getElementById("signQr").innerHTML = qrSvg(base, 8);
-      document.getElementById("signNote").textContent = base;
-      document.getElementById("urlText").textContent = base;
+      var url = joinUrl(base);
+      document.getElementById("signQr").innerHTML = qrSvg(url, 8);
+      document.getElementById("signNote").textContent = url;
+      document.getElementById("urlText").textContent = url;
     }
 
     fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
