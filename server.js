@@ -80,6 +80,30 @@ function hasToken(req) {
 let rosterMap = {};
 let rosterStamp = "";
 
+function classLabelOf(classCount, fileName) {
+  const entries = Object.keys(classCount)
+    .filter((k) => k && !/^[-\s]*$/.test(k))
+    .map((raw) => ({
+      name: String(raw).replace(/海南|校区/g, "").replace(/\s+/g, "").replace(/班+$/, ""),
+      count: classCount[raw],
+    }))
+    .filter((e) => e.name);
+  if (!entries.length) return "";
+  const total = entries.reduce((s, e) => s + e.count, 0);
+  const dominant = entries.slice().sort((a, b) => b.count - a.count)[0];
+  if (dominant.count / total >= 0.85) return dominant.name + "班";
+  const names = [...new Set(entries.map((e) => e.name))]
+    .sort((a, b) => a.localeCompare(b, "zh", { numeric: true }));
+  let prefix = names[0];
+  names.forEach((n) => { while (prefix && !n.startsWith(prefix)) prefix = prefix.slice(0, -1); });
+  prefix = prefix.replace(/\d+$/, "");
+  const m = String(fileName || "").match(/(\d{1,2})\s*班/);
+  if (prefix && m) return prefix + m[1].replace(/^0+(?=\d)/, "") + "班";
+  const suffixes = names.map((n) => n.slice(prefix.length));
+  if (prefix && suffixes.every((s) => /^[\dA-Za-z]+$/.test(s))) return prefix + suffixes.join("/") + "班";
+  return names.join("+") + "班";
+}
+
 function loadRoster(force) {
   let files = [];
   try {
@@ -108,14 +132,19 @@ function loadRoster(force) {
         }
       }
       if (h < 0) continue;
+      const classCount = {};
+      const fileStudents = [];
       for (let i = h + 1; i < rows.length; i++) {
         const id = String(rows[i][cId] || "").trim();
         const name = String(rows[i][cName] || "").trim();
         if (!name || !/^\d+$/.test(id)) continue;
-        map[id] = {
-          name,
-          cls: cCls >= 0 ? String(rows[i][cCls] || "").trim().replace(/海南|校区/g, "").replace(/(\d)$/, "$1班") : "",
-        };
+        const rawCls = cCls >= 0 ? String(rows[i][cCls] || "").trim() : "";
+        if (rawCls) classCount[rawCls] = (classCount[rawCls] || 0) + 1;
+        fileStudents.push({ id, name });
+      }
+      const cls = classLabelOf(classCount, path.basename(f));
+      for (const s of fileStudents) {
+        map[s.id] = { name: s.name, cls };
       }
     }
     rosterMap = map;
@@ -141,20 +170,29 @@ const CSV_DIR = path.join(__dirname, "签到记录");
 function pad2(n) { return String(n).padStart(2, "0"); }
 
 function writeCsv() {
-  if (!checkins.length) return "";
+  if (!checkins.length) return [];
   fs.mkdirSync(CSV_DIR, { recursive: true });
-  const clsCount = {};
-  checkins.forEach((c) => { if (c.cls) clsCount[c.cls] = (clsCount[c.cls] || 0) + 1; });
-  const mainCls = Object.keys(clsCount).sort((a, b) => clsCount[b] - clsCount[a])[0] || "未分类";
-  const d = new Date();
-  const fname = `签到_${mainCls}_${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}.csv`;
-  let csv = "\uFEFF序号,学号,姓名,班级,签到时间\n";
-  checkins.forEach((c, i) => {
-    csv += `${i + 1},${c.id},${c.name},${c.cls},${c.time}\n`;
+  // 按班级分组（班级由学号从名单自动匹配），组内按学号排序
+  const groups = {};
+  checkins.forEach((c) => {
+    const cls = c.cls || "未分类";
+    (groups[cls] = groups[cls] || []).push(c);
   });
-  fs.writeFileSync(path.join(CSV_DIR, fname), csv, "utf8");
-  console.log(`[csv] saved ${fname} (${checkins.length} students)`);
-  return fname;
+  const d = new Date();
+  const stamp = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}`;
+  const files = [];
+  Object.keys(groups).sort().forEach((cls) => {
+    const list = groups[cls].slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const fname = `签到_${cls}_${stamp}.csv`;
+    let csv = "\uFEFF序号,学号,姓名,班级,签到时间\n";
+    list.forEach((c, i) => {
+      csv += `${i + 1},${c.id},${c.name},${c.cls},${c.time}\n`;
+    });
+    fs.writeFileSync(path.join(CSV_DIR, fname), csv, "utf8");
+    files.push(fname);
+    console.log(`[csv] saved ${fname} (${list.length} students)`);
+  });
+  return files;
 }
 
 function startSession(minutes) {
@@ -170,12 +208,12 @@ function endSession(save) {
   if (!session) return null;
   clearTimeout(session.timer);
   session = null;
-  let saved = "";
+  let saved = [];
   if (save) {
     saved = writeCsv();
-    lastCsvFile = saved;
+    lastCsvFile = saved.join("、");
   }
-  console.log(`[session] ended${saved ? " -> " + saved : ""}`);
+  console.log(`[session] ended${saved.length ? " -> " + saved.join(", ") : ""}`);
   return saved;
 }
 let hotspot = { ssid: "", pwd: "" };
