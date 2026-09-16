@@ -35,28 +35,8 @@
     </div>
 
     <button class="rc-fab" id="rcFab">点名</button>
-    <button class="ci-fab" id="ciFab">签到</button>
-
-    <div class="rc-overlay" id="ciOverlay">
-      <div class="rc-sheet">
-        <div class="rc-head">
-          <h2>蓝牙签到 · 教师端</h2>
-          <button class="m-close" id="ciClose" aria-label="关闭">×</button>
-        </div>
-        <div class="ci-status" id="ciStatus">
-          <span class="ci-dot" id="ciDot"></span>
-          <span id="ciStatusText">未开启</span>
-        </div>
-        <div class="ci-url" id="ciUrl" hidden></div>
-        <div class="ci-bigqr" id="ciBigQr"></div>
-        <div class="rc-actions">
-          <button id="ciGo" type="button">开始签到</button>
-          <button id="ciCopy" type="button" disabled>复制名单</button>
-        </div>
-        <p class="rc-drop-hint">学生用手机流量扫码即可签到（无需连接 WiFi）；电脑浏览器开 /monitor 看实时名单</p>
-        <div class="ci-students" id="ciStudents"></div>
-      </div>
-    </div>
+    <a class="ci-fab" href="projector.html" id="ciFab">签到</a>
+    <a class="ci-fab ci-fab-mon" href="monitor.html" id="ciMonFab">监控</a>
 
     <div class="rc-overlay" id="rcOverlay">
       <div class="rc-sheet">
@@ -95,10 +75,7 @@
   </div>
 
   <script src="lib/xlsx.full.min.js"></script>
-  <script src="lib/qrcode.js"></script>
-  <script src="lib/qrcode_UTF8.js"></script>
   <script src="app.js"></script>
   <script src="rollcall.js"></script>
-  <script src="checkin.js"></script>
 </body>
 </html>

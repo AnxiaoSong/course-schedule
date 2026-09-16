@@ -346,8 +346,18 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   cursor: pointer;
   z-index: 40;
   transition: transform .12s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 .ci-fab:active { transform: scale(.92); }
+
+.ci-fab-mon {
+  bottom: calc(162px + env(safe-area-inset-bottom));
+  background: linear-gradient(135deg, #3b5bdb 0%, #5b7cfa 100%);
+  box-shadow: 0 8px 22px rgba(59, 91, 219, .40);
+}
 
 .ci-status {
   display: flex;

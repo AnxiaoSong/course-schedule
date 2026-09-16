@@ -312,7 +312,8 @@ const server = http.createServer((req, res) => {
   }
 
     let rel;
-    if (p === "/") rel = "home.html";
+    if (p === "/") rel = "index.html";
+    else if (p === "/home") rel = "home.html";
     else if (p === "/student") rel = "student.html";
     else rel = p.slice(1);
     if (!rel.includes(".")) rel = rel + ".html";
