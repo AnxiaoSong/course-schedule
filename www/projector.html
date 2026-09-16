@@ -86,6 +86,7 @@
 
   <script src="/lib/qrcode.js"></script>
   <script src="/lib/qrcode_UTF8.js"></script>
+  <script src="/lib/auth.js"></script>
   <script>
     "use strict";
     var FALLBACK = "https://ai-song.online";
@@ -142,8 +143,9 @@
 
     async function poll() {
       try {
-        var r = await fetch(API + "/api/status", { cache: "no-store" });
+        var r = await TeacherAuth.api(API + "/api/status", { cache: "no-store" });
         var j = await r.json();
+        if (j && j.ok === false && j.msg === "unauthorized") { await TeacherAuth.ensureAuth(API); return; }
         document.getElementById("count").textContent = "已签到 " + j.total + " 人";
         if (j.active) {
           running = true;
@@ -169,14 +171,13 @@
     document.getElementById("goBtn").addEventListener("click", async function () {
       if (running) {
         if (!confirm("确定提前结束签到并保存名单？")) return;
-        await fetch(API + "/api/end", { method: "POST" });
+        await TeacherAuth.api(API + "/api/end", { method: "POST" });
         lastEnded = true;
         running = false;
         poll();
       } else {
-        await fetch(API + "/api/start", {
+        await TeacherAuth.api(API + "/api/start", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ minutes: selMinutes })
         });
         running = true;
@@ -187,18 +188,24 @@
       }
     });
 
-    // API 基址：本地服务器优先，失败回退云域名
-    fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
-      API = "";
-      var ips = info.ips || [];
-      var base = info.publicUrl || ("http://" + (ips[0] || "localhost") + ":" + info.port);
-      renderQr(base);
-    }).catch(function () {
-      renderQr(FALLBACK);
-    });
+    // API 基址：本地服务器优先，失败回退云域名；教师授权
+    (function init() {
+      fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
+        API = "";
+        var ips = info.ips || [];
+        var base = info.publicUrl || ("http://" + (ips[0] || "localhost") + ":" + info.port);
+        renderQr(base);
+        afterBase();
+      }).catch(function () {
+        renderQr(FALLBACK);
+        afterBase();
+      });
+      function afterBase() {
+        TeacherAuth.ensureAuth(API).then(function () { poll(); });
+      }
+    })();
 
-    poll();
-    setInterval(poll, 2000);
+    setInterval(function () { poll(); }, 2000);
   </script>
 </body>
 </html>

@@ -60,6 +60,7 @@
   </table>
   <p class="footer">自动刷新中（2 秒） · 数据来自教师手机签到服务</p>
 
+  <script src="/lib/auth.js"></script>
   <script>
     "use strict";
     var lastJson = "";
@@ -94,7 +95,7 @@
     }
     async function pollStatus() {
       try {
-        var r = await fetch(API + "/api/status", { cache: "no-store" });
+        var r = await TeacherAuth.api(API + "/api/status", { cache: "no-store" });
         var j = await r.json();
         var el = document.getElementById("sess");
         if (j.active) {
@@ -108,7 +109,7 @@
     }
     async function load() {
       try {
-        var r = await fetch(API + "/api/list", { cache: "no-store" });
+        var r = await TeacherAuth.api(API + "/api/list", { cache: "no-store" });
         var j = await r.json();
         connFail = 0;
         var text = JSON.stringify(j);
@@ -127,7 +128,7 @@
     document.getElementById("refresh").addEventListener("click", load);
     document.getElementById("clear").addEventListener("click", async function () {
       if (!confirm("确定清空签到名单？")) return;
-      await fetch(API + "/api/clear");
+      await TeacherAuth.api(API + "/api/clear", { method: "POST" });
       lastJson = "";
       load();
     });
@@ -136,17 +137,18 @@
       if (!btn) return;
       var id = btn.getAttribute("data-id");
       if (!confirm("解绑学号 " + id + " 的设备绑定？（学生更换手机后使用）")) return;
-      await fetch(API + "/api/unbind", {
+      await TeacherAuth.api(API + "/api/unbind", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: id })
       });
       load();
     });
-    load();
-    pollStatus();
-    setInterval(load, 2000);
-    setInterval(pollStatus, 2000);
+    TeacherAuth.ensureAuth(API).then(function () {
+      load();
+      pollStatus();
+      setInterval(load, 2000);
+      setInterval(pollStatus, 2000);
+    });
   </script>
 </body>
 </html>

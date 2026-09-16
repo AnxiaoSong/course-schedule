@@ -4,12 +4,37 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const crypto = require("crypto");
 const { spawn, exec } = require("child_process");
 
 const PORT = Number(process.argv[2]) || 8080;
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const WWW = path.join(__dirname, "www");
 const ROSTER_DIR = path.join(__dirname, "名单");
+const SECRET_FILE = path.join(__dirname, "secret.json");
+
+// ---------- 教师私有 token（本地 secret.json，不入库）----------
+let TOKEN = "";
+try {
+  TOKEN = String(JSON.parse(fs.readFileSync(SECRET_FILE, "utf8")).token || "");
+} catch (e) { }
+if (!TOKEN) {
+  TOKEN = crypto.randomBytes(24).toString("hex");
+  fs.writeFileSync(SECRET_FILE, JSON.stringify({ token: TOKEN, createdAt: new Date().toISOString() }, null, 2));
+  console.log("[auth] generated secret.json (teacher token)");
+}
+
+function isLocalReq(req) {
+  // 经反向代理（Caddy/frp）转发的请求携带 X-Forwarded-For，视为外部访问
+  if (req.headers["x-forwarded-for"]) return false;
+  const a = req.socket.remoteAddress || "";
+  return a === "127.0.0.1" || a === "::1" || a === "::ffff:127.0.0.1";
+}
+
+function hasToken(req, url) {
+  const t = url.searchParams.get("t") || req.headers["x-token"] || "";
+  return !!t && t === TOKEN;
+}
 
 let rosterMap = {};
 let rosterStamp = "";
@@ -241,8 +266,44 @@ const server = http.createServer((req, res) => {
   const method = req.method || "GET";
 
   if (method === "OPTIONS") {
-    res.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Headers": "Content-Type" });
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Token",
+    });
     res.end();
+    return;
+  }
+
+  // ---------- 访问守卫 ----------
+  // 学生可访问：签到页、签到提交、公共静态库
+  const isPublic =
+    p === "/student" || p === "/student.html" ||
+    p.startsWith("/lib/") ||
+    p === "/api/checkin" ||
+    p === "/api/auth" ||
+    p === "/favicon.ico";
+
+  if (p === "/api/auth") {
+    if (isLocalReq(req)) {
+      respond(res, 200, "application/json", JSON.stringify({ ok: true, token: TOKEN }));
+    } else {
+      respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
+    }
+    return;
+  }
+
+  if (!isPublic && !isLocalReq(req) && !hasToken(req, url)) {
+    if (p.startsWith("/api/")) {
+      respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
+    } else {
+      respond(res, 403, "text/html; charset=utf-8",
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head>" +
+        "<body style='font-family:sans-serif;background:#f2f4f8;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0'>" +
+        "<div style='text-align:center;color:#1f2430'><div style='font-size:48px'>🔒</div>" +
+        "<h2 style='margin:10px 0 6px'>教师专用页面</h2>" +
+        "<p style='color:#8a93a3;font-size:14px'>学生请扫描教室屏幕上的签到二维码</p></div></body></html>");
+    }
     return;
   }
 

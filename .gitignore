@@ -14,4 +14,5 @@ android/captures/
 *.iml
 .DS_Store
 bindings.json
+secret.json
 签到记录/
