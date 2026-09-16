@@ -35,7 +35,7 @@ echo [1/2] 启动 frpc 内网穿透隧道...
 start "frpc tunnel" frp\frpc.exe -c frp\frpc.toml
 
 echo [2/2] 启动签到服务器...
-set "PUBLIC_URL=http://101.33.196.49:8080"
+set "PUBLIC_URL=https://ai-song.online/"
 if not "%1"=="silent" (
   start "" http://localhost:8080/projector
   node server.js
