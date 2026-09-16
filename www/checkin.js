@@ -28,60 +28,22 @@
     }
   }
 
-  function escWifi(s) {
-    return String(s || "").replace(/([\\;,":])/g, "\\$1");
-  }
-
-  function loadHotspotManual() {
-    try { return JSON.parse(localStorage.getItem("ci-hotspot") || "{}"); } catch (e) { return {}; }
-  }
-  function saveHotspotManual(o) {
-    localStorage.setItem("ci-hotspot", JSON.stringify(o));
-  }
-
-  function askHotspot() {
-    const saved = loadHotspotManual();
-    const ssid = prompt("热点名称（学生连接的 WiFi 名）", saved.ssid || "");
-    if (ssid === null) return null;
-    const pwd = prompt("热点密码", saved.pwd || "");
-    if (pwd === null) return null;
-    const o = { ssid: ssid.trim(), pwd: pwd.trim() };
-    if (o.ssid) saveHotspotManual(o);
-    return o;
-  }
-
-  function showQr(urls, hotspot) {
+  function showQr(urls) {
     const box = $("ciUrl");
     box.hidden = false;
     const base = "http://" + urls[0];
-    const wifiCard = hotspot
-      ? `<div class="qr-card" data-qr="wifi">
-           <div class="qr-img" data-big="1">${qrSvg(`WIFI:T:WPA;S:${escWifi(hotspot.ssid)};P:${escWifi(hotspot.pwd)};;`, 5)}</div>
-           <div class="qr-cap">① 扫码连热点</div>
-           <div class="qr-sub">${hotspot.ssid}</div>
-         </div>`
-      : `<div class="qr-card"><div class="qr-none">未设置热点<br><b id="ciSetHot">点击设置</b></div><div class="qr-cap">① 连热点</div></div>`;
-
     box.innerHTML =
-      `<div class="ci-url-title">学生扫码签到（两步：先连网，再签到）</div>
+      `<div class="ci-url-title">学生扫码签到（手机流量即可，无需连接 WiFi）</div>
        <div class="qr-row">
-         ${wifiCard}
-         <div class="qr-card" data-qr="sign">
+         <div class="qr-card qr-card-single">
            <div class="qr-img" data-big="1">${qrSvg(base, 5)}</div>
-           <div class="qr-cap">② 扫码签到</div>
+           <div class="qr-cap">扫码签到</div>
            <div class="qr-sub">${base}</div>
          </div>
        </div>
        <div class="ci-url-title" style="margin-top:8px">
-         教师监控大屏：${base}/monitor ｜ 可点二维码放大投影
+         教师监控大屏：${base}/monitor ｜ 点二维码可放大投影
        </div>`;
-
-    const setBtn = $("ciSetHot");
-    if (setBtn) setBtn.addEventListener("click", async () => {
-      const o = askHotspot();
-      if (o) showQr(urls, o);
-    });
-
     box.querySelectorAll("[data-big]").forEach((el) =>
       el.addEventListener("click", () => {
         const svg = el.querySelector("svg");
@@ -90,18 +52,6 @@
         $("ciBigQr").classList.add("open");
       })
     );
-  }
-
-  async function prepareHotspot() {
-    const W = wifi();
-    if (!W) return null;
-    try {
-      const info = await W.getHotspot();
-      if (info && info.ssid) return { ssid: info.ssid, pwd: info.password || "" };
-    } catch (e) { }
-    const manual = loadHotspotManual();
-    if (manual.ssid) return { ssid: manual.ssid, pwd: manual.pwd || "" };
-    return null;
   }
 
   function render() {
@@ -145,8 +95,7 @@
       render();
       $("ciGo").textContent = "停止签到";
       status("签到进行中 · 等待学生扫码", true);
-      const hotspot = await prepareHotspot();
-      showQr(ips, hotspot);
+      showQr(ips);
     } catch (e) {
       status("启动失败：" + (e && e.message ? e.message : "未知"), false);
     }

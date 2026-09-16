@@ -384,6 +384,7 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 }
 .ci-url-title { font-size: 10px; color: #8a93a3; margin: 2px 0 4px; }
 .qr-row { display: flex; gap: 8px; }
+.qr-card-single { max-width: 240px; margin: 0 auto; }
 .qr-card {
   flex: 1;
   background: #fff;

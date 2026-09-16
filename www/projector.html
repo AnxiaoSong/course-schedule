@@ -10,57 +10,30 @@
       margin: 0; min-height: 100vh; background: #0f1428; color: #fff;
       font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 30px; gap: 26px;
+      padding: 30px; gap: 24px;
     }
     h1 { margin: 0; font-size: 34px; letter-spacing: 2px; }
-    .sub { color: #8a93a3; font-size: 16px; margin: -10px 0 0; }
-    .cards { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+    .sub { color: #8a93a3; font-size: 16px; margin: -8px 0 0; }
     .card {
-      background: #fff; border-radius: 18px; padding: 22px 22px 14px;
-      text-align: center; color: #1f2430; min-width: 260px;
+      background: #fff; border-radius: 20px; padding: 26px 34px 20px;
+      text-align: center; color: #1f2430;
     }
-    .card .step {
-      display: inline-block; background: #3b5bdb; color: #fff;
-      font-size: 15px; font-weight: 700; border-radius: 20px; padding: 4px 16px;
-    }
-    .card .qr { margin: 14px 0 8px; }
-    .card .qr svg { width: 240px; height: 240px; display: block; }
-    .card .cap { font-size: 19px; font-weight: 800; }
-    .card .note { font-size: 13px; color: #5b6473; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; }
-    .setup { color: #8a93a3; font-size: 13px; cursor: pointer; text-decoration: underline; }
-    .setup:hover { color: #fff; }
-    .hint2 { margin-top: 10px; color: #8a93a3; font-size: 12px; line-height: 1.8; }
-    .hint2 b { color: #ffd166; }
+    .qr svg { width: min(46vh, 340px); height: min(46vh, 340px); display: block; }
+    .cap { font-size: 22px; font-weight: 800; margin-top: 12px; }
+    .note { font-size: 14px; color: #5b6473; margin-top: 6px; font-family: ui-monospace, Consolas, monospace; }
     .hint { color: #5b6473; font-size: 14px; text-align: center; line-height: 2; }
-    .card .qr { margin: 14px 0 8px; }
-    .card .qr svg { width: 210px; height: 210px; display: block; }
-    .dual { display: flex; gap: 14px; justify-content: center; align-items: flex-start; }
-    .dual .col { text-align: center; }
-    .dual svg { width: 150px; height: 150px; }
-    .dual .tag { font-size: 12px; color: #5b6473; margin-top: 5px; }
-    .dual .tag b { display: block; font-size: 14px; color: #1f2430; }
+    .hint b { color: #4ade80; }
   </style>
 </head>
 <body>
   <h1>课堂签到</h1>
-  <p class="sub">两步完成：先连热点，再扫码签到</p>
-  <div class="cards">
-    <div class="card" id="wifiCard">
-      <span class="step">第 1 步</span>
-      <div class="qr dual" id="wifiQr"></div>
-      <div class="cap">扫码连接热点</div>
-      <div class="note" id="wifiNote"></div>
-      <div class="setup" id="wifiSetup">设置热点名称/密码</div>
-      <div class="hint2">左码用<b>系统相机</b>扫自动弹连接 ｜ 右码用<b>微信</b>扫（半自动：自动复制密码+一键跳 WiFi 设置）<br>连过一次的手机会自动重连，可直接扫第②步</div>
-    </div>
-    <div class="card">
-      <span class="step">第 2 步</span>
-      <div class="qr" id="signQr"></div>
-      <div class="cap">扫码打开签到页</div>
-      <div class="note" id="signNote"></div>
-    </div>
+  <p class="sub">用手机流量扫码签到（无需连接任何 WiFi）</p>
+  <div class="card">
+    <div class="qr" id="signQr"></div>
+    <div class="cap">扫码签到</div>
+    <div class="note" id="signNote"></div>
   </div>
-  <p class="hint">无法扫码？连上热点后，用浏览器直接访问：<b id="urlText" style="color:#4ade80"></b></p>
+  <p class="hint">无法扫码？用浏览器直接访问：<b id="urlText"></b><br>填写学号与姓名，点击签到即可</p>
 
   <script src="/lib/qrcode.js"></script>
   <script src="/lib/qrcode_UTF8.js"></script>
@@ -72,67 +45,17 @@
       qr.make();
       return qr.createSvgTag({ cellSize: size, margin: 2 });
     }
-    function escWifi(s) {
-      return String(s || "").replace(/([\\;,":])/g, "\\$1");
-    }
 
-    var serverBase = "";
     fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
       var ips = info.ips || [];
       var ip = ips[0] || "localhost";
-      serverBase = info.publicUrl || ("http://" + ip + ":" + info.port);
-      document.getElementById("signQr").innerHTML = qrSvg(serverBase, 7);
-      document.getElementById("signNote").textContent = serverBase;
-      document.getElementById("urlText").textContent = serverBase;
-      renderWifi();
+      var base = info.publicUrl || ("http://" + ip + ":" + info.port);
+      document.getElementById("signQr").innerHTML = qrSvg(base, 8);
+      document.getElementById("signNote").textContent = base;
+      document.getElementById("urlText").textContent = base;
     }).catch(function () {
       document.getElementById("signQr").innerHTML = "<p>无法获取服务器地址</p>";
-      renderWifi();
     });
-
-    function renderWifi() {
-      fetch("/api/hotspot").then(function (r) { return r.json(); }).then(function (hs) {
-        var box = document.getElementById("wifiQr");
-        if (!hs || !hs.ssid) {
-          box.innerHTML =
-            "<p style='color:#8a93a3;padding:80px 0'>未设置热点<br>（如学生已连同一 WiFi 可跳过）</p>";
-          document.getElementById("wifiNote").textContent = "";
-          return;
-        }
-        var wifiText = "WIFI:T:WPA;S:" + escWifi(hs.ssid) + ";P:" + escWifi(hs.pwd || "") + ";;";
-        var wechatUrl = serverBase + "/wifi";
-        box.innerHTML =
-          '<div class="col">' + qrSvg(wifiText, 6) +
-          '<div class="tag"><b>系统相机</b>扫此码自动连接</div></div>' +
-          '<div class="col">' + qrSvg(wechatUrl, 6) +
-          '<div class="tag"><b>微信</b>扫此码（半自动）</div></div>';
-        document.getElementById("wifiNote").textContent = hs.ssid;
-      }).catch(function () { });
-    }
-
-    document.getElementById("wifiSetup").addEventListener("click", function () {
-      fetch("/api/hotspot").then(function (r) { return r.json(); }).then(function (hs) {
-        var ssid = prompt("热点名称（学生连接的 WiFi 名，留空则清除）", hs.ssid || "");
-        if (ssid === null) return;
-        if (!ssid.trim()) {
-          fetch("/api/hotspot", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ssid: "", pwd: "" })
-          }).then(renderWifi);
-          return;
-        }
-        var pwd = prompt("热点密码", hs.pwd || "");
-        if (pwd === null) return;
-        fetch("/api/hotspot", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ssid: ssid.trim(), pwd: pwd })
-        }).then(renderWifi);
-      }).catch(function () { });
-    });
-
-    renderWifi();
   </script>
 </body>
 </html>
