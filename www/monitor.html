@@ -97,6 +97,7 @@
       try {
         var r = await TeacherAuth.api(API + "/api/status", { cache: "no-store" });
         var j = await r.json();
+        if (j && j.ok === false) return;
         var el = document.getElementById("sess");
         if (j.active) {
           el.textContent = "⏱ " + fmtSec(j.remainSec);
@@ -107,10 +108,28 @@
         }
       } catch (e) { }
     }
+    function showDenied() {
+      document.getElementById("rows").innerHTML =
+        '<tr><td colspan="6" class="empty">🔒 教师页面 · 未授权<br>' +
+        (TeacherAuth.token() ? "token 无效或服务未开启" : "请在教师电脑上使用（自动授权）") + "</td></tr>";
+      document.getElementById("sess").textContent = "未授权";
+      document.getElementById("sess").className = "sess off";
+    }
+
     async function load() {
       try {
         var r = await TeacherAuth.api(API + "/api/list", { cache: "no-store" });
         var j = await r.json();
+        if (j && j.ok === false) {
+          if (j.msg === "unauthorized") {
+            var ok = await TeacherAuth.ensureAuth(API);
+            if (!ok) { showDenied(); return; }
+            load();
+            return;
+          }
+          showDenied();
+          return;
+        }
         connFail = 0;
         var text = JSON.stringify(j);
         j.students.forEach(function (s, i) { s.isNew = false; });
@@ -121,7 +140,8 @@
         connFail++;
         if (connFail >= 2) {
           document.getElementById("rows").innerHTML =
-            '<tr><td colspan="6" class="empty">无法连接签到服务器<br>请确认教师电脑已运行 start-cloud.bat</td></tr>';
+            '<tr><td colspan="6" class="empty">🔒 教师页面 · 未授权<br>' +
+            (TeacherAuth.token() ? "token 无效或服务未开启（start-cloud.bat）" : "请在教师电脑上使用（自动授权）") + "</td></tr>";
         }
       }
     }

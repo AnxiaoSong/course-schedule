@@ -24,15 +24,56 @@ if (!TOKEN) {
   console.log("[auth] generated secret.json (teacher token)");
 }
 
-function isLocalReq(req) {
-  // 经反向代理（Caddy/frp）转发的请求携带 X-Forwarded-For，视为外部访问
-  if (req.headers["x-forwarded-for"]) return false;
-  const a = req.socket.remoteAddress || "";
-  return a === "127.0.0.1" || a === "::1" || a === "::ffff:127.0.0.1";
+// 教师机公网出口 IP（自动学习，定时刷新）：本机浏览器经域名访问教师页也免输入
+let TEACHER_IP = "";
+function refreshTeacherIp() {
+  const sources = [
+    "https://api.ip.sb/ip",
+    "http://members.3322.org/dyndns/getip",
+    "https://api.ipify.org",
+  ];
+  let done = false;
+  sources.forEach((u) => {
+    if (done) return;
+    try {
+      const mod = u.startsWith("https") ? require("https") : require("http");
+      const req2 = mod.get(u, { timeout: 4000 }, (r) => {
+        let buf = "";
+        r.on("data", (c) => buf += c);
+        r.on("end", () => {
+          const ip = String(buf).trim();
+          if (!done && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+            done = true;
+            if (ip !== TEACHER_IP) {
+              TEACHER_IP = ip;
+              console.log(`[auth] teacher public IP: ${ip}`);
+            }
+          }
+        });
+      });
+      req2.on("error", () => { });
+      req2.on("timeout", () => req2.destroy());
+    } catch (e) { }
+  });
+}
+refreshTeacherIp();
+setInterval(refreshTeacherIp, 30 * 60 * 1000);
+
+// 客户端真实 IP：经反代时取 X-Forwarded-For 最后一段（Caddy 追加的真实来源，防伪造）
+function clientIp(req) {
+  const xff = req.headers["x-forwarded-for"];
+  if (xff) return String(xff).split(",").pop().trim();
+  return (req.socket.remoteAddress || "").replace("::ffff:", "");
 }
 
-function hasToken(req, url) {
-  const t = url.searchParams.get("t") || req.headers["x-token"] || "";
+function isTeacherMachine(req) {
+  const ip = clientIp(req);
+  if (!req.headers["x-forwarded-for"] && (ip === "127.0.0.1" || ip === "::1")) return true;
+  return !!TEACHER_IP && ip === TEACHER_IP;
+}
+
+function hasToken(req) {
+  const t = req.headers["x-token"] || "";
   return !!t && t === TOKEN;
 }
 
@@ -276,16 +317,14 @@ const server = http.createServer((req, res) => {
   }
 
   // ---------- 访问守卫 ----------
-  // 学生可访问：签到页、签到提交、公共静态库
+  // 页面为公开壳（数据全部经 API 获取）；API 中除签到提交/授权外均需教师验证
   const isPublic =
-    p === "/student" || p === "/student.html" ||
-    p.startsWith("/lib/") ||
+    !p.startsWith("/api/") ||
     p === "/api/checkin" ||
-    p === "/api/auth" ||
-    p === "/favicon.ico";
+    p === "/api/auth";
 
   if (p === "/api/auth") {
-    if (isLocalReq(req)) {
+    if (isTeacherMachine(req)) {
       respond(res, 200, "application/json", JSON.stringify({ ok: true, token: TOKEN }));
     } else {
       respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
@@ -293,17 +332,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (!isPublic && !isLocalReq(req) && !hasToken(req, url)) {
-    if (p.startsWith("/api/")) {
-      respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
-    } else {
-      respond(res, 403, "text/html; charset=utf-8",
-        "<!DOCTYPE html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'></head>" +
-        "<body style='font-family:sans-serif;background:#f2f4f8;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0'>" +
-        "<div style='text-align:center;color:#1f2430'><div style='font-size:48px'>🔒</div>" +
-        "<h2 style='margin:10px 0 6px'>教师专用页面</h2>" +
-        "<p style='color:#8a93a3;font-size:14px'>学生请扫描教室屏幕上的签到二维码</p></div></body></html>");
-    }
+  if (!isPublic && !isTeacherMachine(req) && !hasToken(req)) {
+    respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
     return;
   }
 
