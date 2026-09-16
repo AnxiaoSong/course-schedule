@@ -8,6 +8,55 @@ const os = require("os");
 const PORT = Number(process.argv[2]) || 8080;
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const WWW = path.join(__dirname, "www");
+const ROSTER_DIR = path.join(__dirname, "名单");
+
+let rosterMap = {};
+let rosterStamp = "";
+
+function loadRoster(force) {
+  let files = [];
+  try {
+    files = fs.readdirSync(ROSTER_DIR)
+      .filter((f) => /\.(xlsx?|csv)$/i.test(f))
+      .map((f) => path.join(ROSTER_DIR, f));
+  } catch (e) { return; }
+  const stamp = files.map((f) => {
+    try { return f + ":" + fs.statSync(f).mtimeMs; } catch (e) { return ""; }
+  }).join("|");
+  if (!force && stamp === rosterStamp) return;
+  rosterStamp = stamp;
+  const map = {};
+  try {
+    const XLSX = require("xlsx");
+    for (const f of files) {
+      const wb = XLSX.readFile(f);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      let h = -1, cId = -1, cName = -1, cCls = -1;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i].map(String);
+        if (r.includes("学号") && r.includes("姓名")) {
+          h = i; cId = r.indexOf("学号"); cName = r.indexOf("姓名"); cCls = r.indexOf("班级");
+          break;
+        }
+      }
+      if (h < 0) continue;
+      for (let i = h + 1; i < rows.length; i++) {
+        const id = String(rows[i][cId] || "").trim();
+        const name = String(rows[i][cName] || "").trim();
+        if (!name || !/^\d+$/.test(id)) continue;
+        map[id] = {
+          name,
+          cls: cCls >= 0 ? String(rows[i][cCls] || "").trim().replace(/海南|校区/g, "").replace(/(\d)$/, "$1班") : "",
+        };
+      }
+    }
+    rosterMap = map;
+    console.log(`[roster] loaded ${Object.keys(rosterMap).length} students from ${files.length} files`);
+  } catch (e) {
+    console.error("[roster] load failed:", e.message);
+  }
+}
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -20,6 +69,8 @@ const MIME = {
 let checkins = [];
 let hotspot = { ssid: "", pwd: "" };
 const HOTSPOT_FILE = path.join(__dirname, "hotspot.json");
+
+loadRoster(true);
 
 try {
   hotspot = JSON.parse(fs.readFileSync(HOTSPOT_FILE, "utf8")) || hotspot;
@@ -41,12 +92,12 @@ function now() {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-function addCheckin(id, name) {
+function addCheckin(id, name, cls) {
   const exist = checkins.find((r) => (id && r.id === id) || r.name === name);
   if (exist) {
     exist.time = now() + "（重签）";
   } else {
-    checkins.push({ id, name, time: now() });
+    checkins.push({ id, name, cls: cls || "", time: now() });
   }
 }
 
@@ -55,7 +106,15 @@ function esc(s) {
 }
 
 function listJson() {
-  return JSON.stringify({ total: checkins.length, students: checkins });
+  const copy = checkins.slice();
+  let sb = "{\"total\":" + copy.length + ",\"students\":[";
+  for (let i = 0; i < copy.length; i++) {
+    const r = copy[i];
+    if (i > 0) sb += ",";
+    sb += "{\"id\":\"" + esc(r.id) + "\",\"name\":\"" + esc(r.name) +
+      "\",\"cls\":\"" + esc(r.cls || "") + "\",\"time\":\"" + esc(r.time) + "\"}";
+  }
+  return sb + "]}";
 }
 
 function readFile(rel) {
@@ -102,23 +161,46 @@ const server = http.createServer((req, res) => {
 
   if (method === "POST" && p === "/api/checkin") {
     readBody(req, (body) => {
+      loadRoster();
       let data = {};
       try { data = JSON.parse(body || "{}"); } catch (e) { }
-      const name = String(data.name || "").trim().slice(0, 50);
       const id = String(data.id || "").trim().slice(0, 20);
-      if (!name) {
-        respond(res, 400, "application/json", JSON.stringify({ ok: false, msg: "name required" }));
+      const manualName = String(data.name || "").trim().slice(0, 50);
+      if (!id && !manualName) {
+        respond(res, 400, "application/json", JSON.stringify({ ok: false, msg: "empty" }));
         return;
       }
-      addCheckin(id, name);
+      let name = manualName;
+      let cls = "";
+      if (id) {
+        const rec = rosterMap[id];
+        if (!rec) {
+          respond(res, 400, "application/json", JSON.stringify({ ok: false, msg: "学号不在名单中，请核对后重试" }));
+          return;
+        }
+        name = rec.name;
+        cls = rec.cls;
+      }
+      addCheckin(id, name, cls);
       console.log(`[checkin] ${id || "-"} ${name}`);
-      respond(res, 200, "application/json", JSON.stringify({ ok: true }));
+      respond(res, 200, "application/json", JSON.stringify({ ok: true, name, cls }));
     });
     return;
   }
 
   if (method === "GET" && p === "/api/list") {
     respond(res, 200, "application/json", listJson());
+    return;
+  }
+
+  if (method === "GET" && p === "/api/roster") {
+    loadRoster();
+    const students = Object.keys(rosterMap).map((id) => ({
+      id,
+      name: rosterMap[id].name,
+      cls: rosterMap[id].cls,
+    }));
+    respond(res, 200, "application/json", JSON.stringify({ total: students.length, students }));
     return;
   }
 

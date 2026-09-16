@@ -52,12 +52,11 @@
   <div class="card" id="card">
     <div class="ok-big">✅</div>
     <h1>课堂签到</h1>
-    <p class="sub" id="sub">填写学号与姓名提交签到</p>
+    <p class="sub" id="sub">输入学号提交签到</p>
     <span class="mode-tag">扫码签到</span>
 
     <div id="form">
       <input id="id" type="text" inputmode="numeric" maxlength="12" placeholder="学号" autocomplete="off" />
-      <input id="name" type="text" maxlength="20" placeholder="姓名" autocomplete="off" />
       <button id="go" type="button">签 到</button>
       <div class="msg" id="msg"></div>
     </div>
@@ -66,14 +65,13 @@
       此页面为签到引导页。请按教室屏幕指引：<br />
       <b>①</b> 扫描屏幕左侧二维码，连接老师的热点<br />
       <b>②</b> 连接成功后，扫描屏幕右侧二维码打开签到页<br />
-      <b>③</b> 填写学号与姓名，点击签到
+      <b>③</b> 输入学号，点击签到
     </div>
   </div>
 
   <script>
     "use strict";
     var idEl = document.getElementById("id");
-    var nameEl = document.getElementById("name");
     var goEl = document.getElementById("go");
     var msgEl = document.getElementById("msg");
     var cardEl = document.getElementById("card");
@@ -86,7 +84,6 @@
       document.getElementById("sub").textContent = "请按教室屏幕指引完成签到";
     } else {
       idEl.value = localStorage.getItem("ci-student-id") || "";
-      nameEl.value = localStorage.getItem("ci-student-name") || "";
     }
 
     function say(text, cls) {
@@ -95,11 +92,8 @@
     }
 
     goEl.addEventListener("click", async function () {
-      var name = nameEl.value.trim();
       var id = idEl.value.trim();
       if (!id) { say("请输入学号", "err"); idEl.focus(); return; }
-      if (!name) { say("请输入姓名", "err"); nameEl.focus(); return; }
-      localStorage.setItem("ci-student-name", name);
       localStorage.setItem("ci-student-id", id);
       goEl.disabled = true;
       cardEl.classList.remove("done");
@@ -107,15 +101,15 @@
         var r = await fetch("/api/checkin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: id, name: name })
+          body: JSON.stringify({ id: id })
         });
         var j = await r.json();
         if (j.ok) {
           cardEl.classList.add("done");
-          say("签到成功：" + name + " " + id, "ok");
+          say("签到成功：" + j.name + (j.cls ? "（" + j.cls + "）" : ""), "ok");
           if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
         } else {
-          say("签到失败，请重试", "err");
+          say(j.msg || "签到失败，请重试", "err");
         }
       } catch (e) {
         say("无法连接签到服务，请确认已连接老师的热点", "err");

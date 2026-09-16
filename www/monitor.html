@@ -44,8 +44,8 @@
     </div>
   </header>
   <table>
-    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th style="text-align:right">时间</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="4" class="empty">暂无学生签到</td></tr></tbody>
+    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th>班级</th><th style="text-align:right">时间</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="5" class="empty">暂无学生签到</td></tr></tbody>
   </table>
   <p class="footer">自动刷新中（2 秒） · 数据来自教师手机签到服务</p>
 
@@ -56,7 +56,7 @@
       document.getElementById("n").textContent = data.total;
       var tb = document.getElementById("rows");
       if (!data.total) {
-        tb.innerHTML = '<tr><td colspan="4" class="empty">暂无学生签到</td></tr>';
+        tb.innerHTML = '<tr><td colspan="5" class="empty">暂无学生签到</td></tr>';
         return;
       }
       tb.innerHTML = data.students.map(function (s, i) {
@@ -64,6 +64,7 @@
           + '<td class="num">' + (i + 1) + "</td>"
           + '<td class="id">' + esc(s.id || "—") + "</td>"
           + "<td>" + esc(s.name) + "</td>"
+          + "<td>" + esc(s.cls || "") + "</td>"
           + '<td class="time">' + esc(s.time) + "</td></tr>";
       }).join("");
     }

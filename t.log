@@ -1,0 +1,15 @@
+[roster] loaded 113 students from 3 files
+==============================================
+  Course Schedule Check-in Server (Node.js)
+  Local:      http://localhost:8080
+  Network:    http://198.18.0.1:8080
+  Network:    http://10.144.144.8:8080
+  Network:    http://192.168.137.1:8080
+  Network:    http://192.168.1.62:8080
+  Network:    http://172.22.128.1:8080
+  Network:    http://172.30.160.1:8080
+  Projector:  http://localhost:8080/projector
+  Monitor:    http://localhost:8080/monitor
+  Press Ctrl+C to stop
+==============================================
+[checkin] 26160046 莫佳琪

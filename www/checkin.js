@@ -63,17 +63,36 @@
     }
     box.innerHTML = `<div class="rc-h-title">已签到（${state.students.length}）</div>` +
       state.students.map((s) =>
-        `<div class="ci-row"><b>${s.name}${s.id ? ` <i>${s.id}</i>` : ""}</b><span>${s.time}</span></div>`).join("");
+        `<div class="ci-row"><b>${s.name}${s.id ? ` <i>${s.id}</i>` : ""}${s.cls ? ` <i>${s.cls}</i>` : ""}</b><span>${s.time}</span></div>`).join("");
+  }
+
+  function localRosterName(id) {
+    try {
+      const idx = JSON.parse(localStorage.getItem("roster:index") || "[]");
+      for (const key of idx) {
+        const roster = JSON.parse(localStorage.getItem("roster:" + key) || "null");
+        if (!roster) continue;
+        const list = Array.isArray(roster) ? roster : roster.students || [];
+        const hit = list.find((s) => String(s.id) === String(id));
+        if (hit) return { name: hit.name, cls: key.replace(/班$/, "") };
+      }
+    } catch (e) { }
+    return null;
   }
 
   function onCheckin(event) {
-    const name = String(event.name || "").trim().slice(0, 50);
-    const id = String(event.id || "").trim().slice(0, 20);
+    let name = String(event.name || "").trim().slice(0, 50);
+    let id = String(event.id || "").trim().slice(0, 20);
+    let cls = String(event.cls || "").trim();
+    if (!name && id) {
+      const hit = localRosterName(id);
+      if (hit) { name = hit.name; cls = cls || hit.cls; }
+    }
     if (!name) return;
     const time = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const exist = state.students.find((s) => (id && s.id === id) || s.name === name);
     if (exist) exist.time = time + "（重签）";
-    else state.students.push({ name, id, time });
+    else state.students.push({ name, id, cls, time });
     render();
     if (navigator.vibrate) navigator.vibrate(80);
   }
