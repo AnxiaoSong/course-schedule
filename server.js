@@ -186,6 +186,27 @@ const MIME = {
 };
 
 let checkins = [];
+let classroom = null; // {lat, lng, radius}
+const CLASSROOM_FILE = path.join(__dirname, "classroom.json");
+try {
+  classroom = JSON.parse(fs.readFileSync(CLASSROOM_FILE, "utf8")) || null;
+} catch (e) { }
+
+function saveClassroom() {
+  if (classroom) fs.writeFile(CLASSROOM_FILE, JSON.stringify(classroom), () => { });
+  else fs.unlink(CLASSROOM_FILE, () => { });
+}
+
+// Haversine 距离（米）
+function distMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const rad = (d) => d * Math.PI / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 let session = null; // { endAt, timer }
 let lastCsvFile = "";
 const CSV_DIR = path.join(__dirname, "签到记录");
@@ -306,12 +327,13 @@ function now() {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-function addCheckin(id, name, cls) {
+function addCheckin(id, name, cls, dist) {
   const exist = checkins.find((r) => (id && r.id === id) || r.name === name);
   if (exist) {
     exist.time = now() + "（重签）";
+    exist.dist = dist;
   } else {
-    checkins.push({ id, name, cls: cls || "", time: now() });
+    checkins.push({ id, name, cls: cls || "", time: now(), dist });
   }
 }
 
@@ -326,7 +348,8 @@ function listJson() {
     const r = copy[i];
     if (i > 0) sb += ",";
     sb += "{\"id\":\"" + esc(r.id) + "\",\"name\":\"" + esc(r.name) +
-      "\",\"cls\":\"" + esc(r.cls || "") + "\",\"time\":\"" + esc(r.time) + "\"}";
+      "\",\"cls\":\"" + esc(r.cls || "") + "\",\"dist\":" + (typeof r.dist === "number" ? r.dist : -1) +
+      ",\"time\":\"" + esc(r.time) + "\"}";
   }
   return sb + "]}";
 }
@@ -429,6 +452,36 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (method === "GET" && p === "/api/classroom") {
+    respond(res, 200, "application/json", JSON.stringify({ ok: true, classroom }));
+    return;
+  }
+
+  if (method === "POST" && p === "/api/classroom") {
+    readBody(req, (body) => {
+      let data = {};
+      try { data = JSON.parse(body || "{}"); } catch (e) { }
+      if (data.clear) {
+        classroom = null;
+        saveClassroom();
+        respond(res, 200, "application/json", JSON.stringify({ ok: true, classroom: null }));
+        return;
+      }
+      const lat = Number(data.lat);
+      const lng = Number(data.lng);
+      const radius = Math.min(5000, Math.max(50, Number(data.radius) || 500));
+      if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        respond(res, 400, "application/json", JSON.stringify({ ok: false, msg: "坐标无效" }));
+        return;
+      }
+      classroom = { lat, lng, radius };
+      saveClassroom();
+      console.log(`[classroom] set (${lat},${lng}) r=${radius}m`);
+      respond(res, 200, "application/json", JSON.stringify({ ok: true, classroom }));
+    });
+    return;
+  }
+
   if (method === "POST" && p === "/api/checkin") {
     readBody(req, (body) => {
       loadRoster();
@@ -468,9 +521,29 @@ const server = http.createServer((req, res) => {
         bindings.byId[id] = device;
         saveBindings();
       }
-      addCheckin(id, rec.name, rec.cls);
-      console.log(`[checkin] ${id} ${rec.name} (${device ? "dev:" + device.slice(0, 8) : "no-device"})`);
-      respond(res, 200, "application/json", JSON.stringify({ ok: true, name: rec.name, cls: rec.cls }));
+      // 地理围栏：教室位置已设置时，签到须在 radius 米内
+      let dist = -1;
+      if (classroom) {
+        const lat = Number(data.lat), lng = Number(data.lng);
+        if (!isFinite(lat) || !isFinite(lng)) {
+          respond(res, 403, "application/json", JSON.stringify({
+            ok: false,
+            msg: "请允许获取定位后签到",
+          }));
+          return;
+        }
+        dist = Math.round(distMeters(lat, lng, classroom.lat, classroom.lng));
+        if (dist > classroom.radius) {
+          respond(res, 403, "application/json", JSON.stringify({
+            ok: false,
+            msg: `距离教室 ${dist} 米，超过 ${classroom.radius} 米限制，无法签到`,
+          }));
+          return;
+        }
+      }
+      addCheckin(id, rec.name, rec.cls, dist);
+      console.log(`[checkin] ${id} ${rec.name} (${device ? "dev:" + device.slice(0, 8) : "no-device"}${dist >= 0 ? " dist:" + dist + "m" : ""})`);
+      respond(res, 200, "application/json", JSON.stringify({ ok: true, name: rec.name, cls: rec.cls, dist }));
     });
     return;
   }

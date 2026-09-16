@@ -15,4 +15,5 @@ android/captures/
 .DS_Store
 bindings.json
 secret.json
+classroom.json
 签到记录/

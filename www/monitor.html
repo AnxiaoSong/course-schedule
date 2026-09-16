@@ -55,8 +55,8 @@
     </div>
   </header>
   <table>
-    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th>班级</th><th style="text-align:right">时间</th><th>操作</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="6" class="empty">暂无学生签到</td></tr></tbody>
+    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th>班级</th><th>距离</th><th style="text-align:right">时间</th><th>操作</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="7" class="empty">暂无学生签到</td></tr></tbody>
   </table>
   <p class="footer">自动刷新中（2 秒） · 数据来自教师手机签到服务</p>
 
@@ -72,11 +72,13 @@
         return;
       }
       tb.innerHTML = data.students.map(function (s, i) {
+        var dist = (typeof s.dist === "number" && s.dist >= 0) ? s.dist + "米" : "—";
         return "<tr" + (i === 0 && s.isNew ? ' class="new"' : "") + ">"
           + '<td class="num">' + (i + 1) + "</td>"
           + '<td class="id">' + esc(s.id || "—") + "</td>"
           + "<td>" + esc(s.name) + "</td>"
           + "<td>" + esc(s.cls || "") + "</td>"
+          + '<td class="id">' + dist + "</td>"
           + '<td class="time">' + esc(s.time) + "</td>"
           + '<td class="op">' + (s.id ? '<button class="ub" data-id="' + esc(s.id) + '">解绑</button>' : "") + "</td></tr>";
       }).join("");
@@ -110,7 +112,7 @@
     }
     function showDenied() {
       document.getElementById("rows").innerHTML =
-        '<tr><td colspan="6" class="empty">🔒 教师页面 · 未授权<br>' +
+        '<tr><td colspan="7" class="empty">🔒 教师页面 · 未授权<br>' +
         (TeacherAuth.token() ? "token 无效或服务未开启" : "请在教师电脑上使用（自动授权）") + "</td></tr>";
       document.getElementById("sess").textContent = "未授权";
       document.getElementById("sess").className = "sess off";

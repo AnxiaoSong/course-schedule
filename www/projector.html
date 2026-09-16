@@ -77,6 +77,7 @@
         <button class="min-btn" data-m="15">15分钟</button>
       </div>
       <button class="btn go" id="goBtn">开始签到</button>
+      <button class="btn ghost" id="geoBtn">📍 设置教室位置（500米内有效）</button>
       <button class="btn ghost" id="openMon" onclick="location.href='monitor.html'">打开监控页</button>
       <div class="saved" id="saved"></div>
     </div>
@@ -188,6 +189,44 @@
       }
     });
 
+    document.getElementById("geoBtn").addEventListener("click", function () {
+      if (!navigator.geolocation) { alert("当前设备不支持定位"); return; }
+      if (!confirm("将在当前位置设置签到有效范围（默认500米）。请确认教师机在教室内，继续？")) return;
+      document.getElementById("geoBtn").textContent = "定位中…";
+      navigator.geolocation.getCurrentPosition(async function (pos) {
+        try {
+          var r = await TeacherAuth.api(API + "/api/classroom", {
+            method: "POST",
+            body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude, radius: 500 })
+          });
+          var j = await r.json();
+          if (j.ok) {
+            loadClassroom();
+          } else {
+            alert("设置失败：" + (j.msg || "未知"));
+          }
+        } catch (e) { alert("设置失败：无法连接服务器"); }
+        document.getElementById("geoBtn").textContent = "📍 设置教室位置（500米内有效）";
+      }, function (err) {
+        alert(err.code === 1 ? "定位权限被拒绝，请在浏览器中允许定位" : "定位失败，请重试");
+        document.getElementById("geoBtn").textContent = "📍 设置教室位置（500米内有效）";
+      }, { enableHighAccuracy: true, timeout: 12000 });
+    });
+
+    async function loadClassroom() {
+      try {
+        var r = await TeacherAuth.api(API + "/api/classroom", { cache: "no-store" });
+        var j = await r.json();
+        var el = document.getElementById("geoBtn");
+        if (j.classroom) {
+          var c = j.classroom;
+          el.textContent = "📍 教室已设置（" + c.lat.toFixed(5) + "," + c.lng.toFixed(5) + " · " + c.radius + "米）点击重设";
+        } else {
+          el.textContent = "📍 设置教室位置（500米内有效）";
+        }
+      } catch (e) { }
+    }
+
     // API 基址：本地服务器优先，失败回退云域名；教师授权
     (function init() {
       fetch("/api/info").then(function (r) { return r.json(); }).then(function (info) {
@@ -201,7 +240,10 @@
         afterBase();
       });
       function afterBase() {
-        TeacherAuth.ensureAuth(API).then(function () { poll(); });
+        TeacherAuth.ensureAuth(API).then(function () {
+          poll();
+          loadClassroom();
+        });
       }
     })();
 

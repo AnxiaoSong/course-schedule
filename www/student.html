@@ -100,6 +100,17 @@
       msgEl.className = "msg" + (cls ? " " + cls : "");
     }
 
+    function getPosition() {
+      return new Promise(function (resolve, reject) {
+        if (!navigator.geolocation) { reject(new Error("当前浏览器不支持定位")); return; }
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        }, function (err) {
+          reject(new Error(err.code === 1 ? "请允许定位权限后签到" : "定位失败，请开启 GPS/定位服务后重试"));
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+      });
+    }
+
     goEl.addEventListener("click", async function () {
       var id = idEl.value.trim();
       if (!id) { say("请输入学号", "err"); idEl.focus(); return; }
@@ -107,25 +118,37 @@
       goEl.disabled = true;
       cardEl.classList.remove("done");
       try {
-        var r = await fetch("/api/checkin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: id, device: device })
-        });
-        var j = await r.json();
+        var body = { id: id, device: device };
+        var j = await submit(body);
+        if (j && j.ok === false && j.msg === "请允许获取定位后签到") {
+          say("正在获取定位…");
+          var pos = await getPosition();
+          body.lat = pos.lat;
+          body.lng = pos.lng;
+          j = await submit(body);
+        }
         if (j.ok) {
           cardEl.classList.add("done");
-          say("签到成功：" + j.name + (j.cls ? "（" + j.cls + "）" : ""), "ok");
+          say("签到成功：" + j.name + (j.cls ? "（" + j.cls + "）" : "") + (j.dist >= 0 ? " · 距教室 " + j.dist + " 米" : ""), "ok");
           if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
         } else {
           say(j.msg || "签到失败，请重试", "err");
         }
-      } catch (e) {
-        say("无法连接签到服务，请确认已连接老师的热点", "err");
+      } catch (locErr) {
+        say(locErr.message || "签到失败，请重试", "err");
       } finally {
         goEl.disabled = false;
       }
     });
+
+    async function submit(body) {
+      var r = await fetch("/api/checkin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      return r.json();
+    }
   </script>
 </body>
 </html>
