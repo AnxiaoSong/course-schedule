@@ -28,6 +28,11 @@
     td.num { color: #8a93a3; font-size: 15px; width: 56px; }
     td.id { color: #9fb4ff; font-family: ui-monospace, Consolas, monospace; }
     td.time { color: #8a93a3; font-size: 14px; text-align: right; }
+    td.op button.ub {
+      border: 1.5px solid #3a4468; background: transparent; color: #aab4d4;
+      border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+    }
+    td.op button.ub:hover { border-color: #5b7cfa; color: #fff; }
     tr.new td { animation: flash 1.2s ease; }
     @keyframes flash { from { background: #1d3a2a; } to { background: transparent; } }
     .empty { color: #5b6473; padding: 40px 0; text-align: center; font-size: 16px; }
@@ -44,8 +49,8 @@
     </div>
   </header>
   <table>
-    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th>班级</th><th style="text-align:right">时间</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="5" class="empty">暂无学生签到</td></tr></tbody>
+    <thead><tr><th>#</th><th>学号</th><th>姓名</th><th>班级</th><th style="text-align:right">时间</th><th>操作</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6" class="empty">暂无学生签到</td></tr></tbody>
   </table>
   <p class="footer">自动刷新中（2 秒） · 数据来自教师手机签到服务</p>
 
@@ -56,7 +61,7 @@
       document.getElementById("n").textContent = data.total;
       var tb = document.getElementById("rows");
       if (!data.total) {
-        tb.innerHTML = '<tr><td colspan="5" class="empty">暂无学生签到</td></tr>';
+        tb.innerHTML = '<tr><td colspan="6" class="empty">暂无学生签到</td></tr>';
         return;
       }
       tb.innerHTML = data.students.map(function (s, i) {
@@ -65,7 +70,8 @@
           + '<td class="id">' + esc(s.id || "—") + "</td>"
           + "<td>" + esc(s.name) + "</td>"
           + "<td>" + esc(s.cls || "") + "</td>"
-          + '<td class="time">' + esc(s.time) + "</td></tr>";
+          + '<td class="time">' + esc(s.time) + "</td>"
+          + '<td class="op">' + (s.id ? '<button class="ub" data-id="' + esc(s.id) + '">解绑</button>' : "") + "</td></tr>";
       }).join("");
     }
     function esc(s) {
@@ -89,6 +95,18 @@
       if (!confirm("确定清空签到名单？")) return;
       await fetch("/api/clear");
       lastJson = "";
+      load();
+    });
+    document.getElementById("rows").addEventListener("click", async function (e) {
+      var btn = e.target.closest(".ub");
+      if (!btn) return;
+      var id = btn.getAttribute("data-id");
+      if (!confirm("解绑学号 " + id + " 的设备绑定？（学生更换手机后使用）")) return;
+      await fetch("/api/unbind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id })
+      });
       load();
     });
     load();

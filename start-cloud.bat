@@ -39,11 +39,11 @@ if not errorlevel 1 (
   exit /b 0
 )
 
-echo [1/2] 启动 frpc 内网穿透隧道...
-powershell -NoProfile -WindowStyle Hidden -Command "Start-Process -FilePath '%~dp0frp\frpc.exe' -ArgumentList '-c','%~dp0frp\frpc.toml' -WindowStyle Hidden"
-
-echo [2/2] 启动签到服务器...
+echo 启动签到服务器与内网穿透隧道...
+echo 关闭本窗口即可停止全部服务（含后台隧道）。
 set "PUBLIC_URL=https://ai-song.online/"
 start "" https://ai-song.online/projector
 node server.js
+echo.
+echo 服务已停止。
 pause

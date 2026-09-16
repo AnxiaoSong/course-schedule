@@ -76,6 +76,15 @@
     var msgEl = document.getElementById("msg");
     var cardEl = document.getElementById("card");
 
+    // 设备指纹：首次签到时与学号绑定，防止代签/冒签
+    var device = localStorage.getItem("ci-device");
+    if (!device) {
+      device = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID().replace(/-/g, "")
+        : "d" + Date.now() + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem("ci-device", device);
+    }
+
     // 只有 GitHub Pages（anxiaosong.github.io）显示引导页；正式域名/局域网地址直接显示签到表单
     var localMode = !/github\.io/i.test(location.hostname);
     if (!localMode) {
@@ -101,7 +110,7 @@
         var r = await fetch("/api/checkin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: id })
+          body: JSON.stringify({ id: id, device: device })
         });
         var j = await r.json();
         if (j.ok) {
