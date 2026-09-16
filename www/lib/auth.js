@@ -11,8 +11,13 @@ var TeacherAuth = (function () {
   }
 
   function tryFetchToken(base) {
-    return fetch((base || "") + "/api/auth", { cache: "no-store" })
-      .then(function (r) { return r.json(); })
+    return fetch((base || "") + "/api/auth", { cache: "no-store", credentials: "include" })
+      .then(function (r) {
+        if (r.ok && !((base || "").indexOf("localhost") >= 0 || (base || "").indexOf("127.0.0.1") >= 0)) {
+          // 同域成功，Set-Cookie 已由服务器种下
+        }
+        return r.json();
+      })
       .then(function (j) {
         if (j && j.token) {
           TOK = j.token;

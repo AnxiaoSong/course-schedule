@@ -73,8 +73,31 @@ function isTeacherMachine(req) {
 }
 
 function hasToken(req) {
-  const t = req.headers["x-token"] || "";
-  return !!t && t === TOKEN;
+  const h = req.headers["x-token"] || "";
+  if (h && h === TOKEN) return true;
+  const cookie = String(req.headers.cookie || "");
+  const m = cookie.match(/(?:^|;\s*)ttok=([^;]+)/);
+  return !!(m && m[1] === TOKEN);
+}
+
+function authPage() {
+  return "<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'>" +
+    "<meta name='viewport' content='width=device-width,initial-scale=1'>" +
+    "<title>教师验证</title><style>" +
+    "body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#f2f4f8;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}" +
+    ".c{background:#fff;border-radius:18px;padding:30px 26px;width:90%;max-width:360px;text-align:center;box-shadow:0 10px 30px rgba(28,39,71,.1)}" +
+    ".i{font-size:44px}h2{margin:10px 0 6px;font-size:19px}p{color:#8a93a3;font-size:13px;margin:0 0 18px}" +
+    "input{width:100%;border:1.5px solid #e6e9ef;border-radius:12px;padding:13px;font-size:15px;text-align:center;outline:none;font-family:monospace}" +
+    "input:focus{border-color:#3b5bdb}button{width:100%;margin-top:14px;border:0;border-radius:12px;padding:13px;background:linear-gradient(135deg,#3b5bdb,#7c5cfa);color:#fff;font-size:16px;font-weight:700;cursor:pointer}" +
+    ".msg{margin-top:12px;font-size:13px;min-height:18px;color:#e5484d}</style></head><body><div class='c'>" +
+    "<div class='i'>🔒</div><h2>教师专用页面</h2><p>学生请扫描教室屏幕上的签到二维码</p>" +
+    "<input id='t' placeholder='输入教师 token（secret.json）' autocomplete='off'>" +
+    "<button onclick='go()'>验证进入</button><div class='msg' id='m'></div>" +
+    "<script>function go(){var t=document.getElementById('t').value.trim();" +
+    "fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})" +
+    ".then(function(r){return r.json()}).then(function(j){if(j.ok){location.reload()}else{document.getElementById('m').textContent='token 不正确'}})}" +
+    "(function(){fetch('/api/auth',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){location.reload()}}).catch(function(e){})})()" +
+    "</script></div></body></html>";
 }
 
 let rosterMap = {};
@@ -355,15 +378,42 @@ const server = http.createServer((req, res) => {
   }
 
   // ---------- 访问守卫 ----------
-  // 页面为公开壳（数据全部经 API 获取）；API 中除签到提交/授权外均需教师验证
+  // 学生可访问：签到页、静态库、签到提交、授权接口
   const isPublic =
-    !p.startsWith("/api/") ||
+    p === "/student" || p === "/student.html" ||
+    p.startsWith("/lib/") ||
     p === "/api/checkin" ||
-    p === "/api/auth";
+    p === "/api/auth" ||
+    p === "/favicon.ico";
 
   if (p === "/api/auth") {
+    if (method === "POST") {
+      readBody(req, (body) => {
+        let data = {};
+        try { data = JSON.parse(body || "{}"); } catch (e) { }
+        const input = String(data.token || "").trim();
+        if (input && input === TOKEN) {
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Set-Cookie": `ttok=${TOKEN}; Path=/; Max-Age=2592000; SameSite=Lax`,
+            "Connection": "close",
+          });
+          res.end(JSON.stringify({ ok: true }));
+        } else {
+          respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "token 不正确" }));
+        }
+      });
+      return;
+    }
     if (isTeacherMachine(req)) {
-      respond(res, 200, "application/json", JSON.stringify({ ok: true, token: TOKEN }));
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Set-Cookie": `ttok=${TOKEN}; Path=/; Max-Age=2592000; SameSite=Lax`,
+        "Connection": "close",
+      });
+      res.end(JSON.stringify({ ok: true, token: TOKEN }));
     } else {
       respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
     }
@@ -371,7 +421,11 @@ const server = http.createServer((req, res) => {
   }
 
   if (!isPublic && !isTeacherMachine(req) && !hasToken(req)) {
-    respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
+    if (p.startsWith("/api/")) {
+      respond(res, 403, "application/json", JSON.stringify({ ok: false, msg: "unauthorized" }));
+    } else {
+      respond(res, 403, "text/html; charset=utf-8", authPage());
+    }
     return;
   }
 
