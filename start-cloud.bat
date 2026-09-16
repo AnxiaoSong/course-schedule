@@ -34,7 +34,7 @@ if not exist frp\frpc.toml (
 netstat -ano | findstr ":8080 " | findstr "LISTENING" >nul 2>nul
 if not errorlevel 1 (
   echo 签到服务已在运行，无需重复启动。
-  start "" http://localhost:8080/projector
+  start "" https://ai-song.online/projector
   pause
   exit /b 0
 )
@@ -42,7 +42,7 @@ if not errorlevel 1 (
 echo 启动签到服务器与内网穿透隧道...
 echo 关闭本窗口即可停止全部服务（含后台隧道）。
 set "PUBLIC_URL=https://ai-song.online/"
-start "" http://localhost:8080/projector
+start "" https://ai-song.online/projector
 node server.js
 echo.
 echo 服务已停止。
