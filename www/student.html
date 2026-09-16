@@ -78,8 +78,8 @@
     var msgEl = document.getElementById("msg");
     var cardEl = document.getElementById("card");
 
-    // 非局域网（如 GitHub Pages 引导页）→ 显示使用指引，隐藏表单
-    var localMode = location.protocol === "http:" && !/github\.io/i.test(location.hostname);
+    // 只有 GitHub Pages（anxiaosong.github.io）显示引导页；正式域名/局域网地址直接显示签到表单
+    var localMode = !/github\.io/i.test(location.hostname);
     if (!localMode) {
       document.getElementById("form").style.display = "none";
       document.getElementById("guide").style.display = "block";
