@@ -37,7 +37,6 @@
     <button class="rc-fab" id="rcFab">点名</button>
     <a class="ci-fab" href="projector.html" id="ciFab">签到</a>
     <a class="ci-fab ci-fab-mon" href="monitor.html" id="ciMonFab">监控</a>
-
     <div class="rc-overlay" id="rcOverlay">
       <div class="rc-sheet">
         <div class="rc-head">
@@ -77,5 +76,25 @@
   <script src="lib/xlsx.full.min.js"></script>
   <script src="app.js"></script>
   <script src="rollcall.js"></script>
+  <script>
+    "use strict";
+    // 点"签到"：自动开启签到会话（默认5分钟），再进入投影页
+    document.getElementById("ciFab").addEventListener("click", function (e) {
+      e.preventDefault();
+      var go = function () { location.href = "projector.html"; };
+      try {
+        fetch("/api/status", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+          if (j.active) { go(); return; }
+          return fetch("/api/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ minutes: 5 })
+          }).then(go, go);
+        }).catch(go);
+      } catch (err) {
+        go();
+      }
+    });
+  </script>
 </body>
 </html>
