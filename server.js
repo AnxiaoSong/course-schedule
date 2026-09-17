@@ -10,11 +10,12 @@ const { spawn, exec } = require("child_process");
 const PORT = Number(process.argv[2]) || 8080;
 const PUBLIC_URL = process.env.PUBLIC_URL || "https://ai-song.online/";
 
-// 可写数据目录：pkg 打包后跟随 exe；开发模式跟随脚本目录
+// 可写数据目录：环境变量优先（Electron 客户端），pkg 打包后跟随 exe，开发模式跟随脚本目录
 const EXE_DIR = path.dirname(process.execPath);
 const DEV_DIR = __dirname;
 const IS_PKG = !!process.pkg;
-const DATA_DIR = IS_PKG ? EXE_DIR : DEV_DIR;
+const DATA_DIR = process.env.CHECKIN_DATA_DIR ||
+  (IS_PKG ? EXE_DIR : DEV_DIR);
 
 const WWW = IS_PKG ? path.join(__dirname, "www") : path.join(__dirname, "www");
 const ROSTER_DIR = path.join(DATA_DIR, "名单");
@@ -292,8 +293,35 @@ loadRoster(true);
 
 // ---------- frpc 子进程托管：node 退出（含关闭窗口）时一并停止 ----------
 let frpcProc = null;
-const FRPC_EXE = path.join(DATA_DIR, "frp", "frpc.exe");
-const FRPC_CFG = path.join(DATA_DIR, "frp", "frpc.toml");
+// frpc 定位：数据目录 frp/ → 打包资源目录 frp/ → 开发目录 frp/
+function firstExisting(...cands) {
+  for (const c of cands) {
+    try { if (c && fs.existsSync(c)) return c; } catch (e) { }
+  }
+  return cands[cands.length - 1];
+}
+const RES_FRP_DIR = (typeof process.resourcesPath === "string" && process.resourcesPath)
+  ? path.join(process.resourcesPath, "frp") : null;
+const DATA_FRP_DIR = path.join(DATA_DIR, "frp");
+
+if (RES_FRP_DIR && fs.existsSync(path.join(RES_FRP_DIR, "frpc.toml")) &&
+    !fs.existsSync(path.join(DATA_FRP_DIR, "frpc.toml"))) {
+  try {
+    fs.mkdirSync(DATA_FRP_DIR, { recursive: true });
+    fs.copyFileSync(path.join(RES_FRP_DIR, "frpc.toml"), path.join(DATA_FRP_DIR, "frpc.toml"));
+  } catch (e) { }
+}
+
+const FRPC_EXE = firstExisting(
+  path.join(DATA_FRP_DIR, "frpc.exe"),
+  RES_FRP_DIR ? path.join(RES_FRP_DIR, "frpc.exe") : null,
+  path.join(DEV_DIR, "frp", "frpc.exe")
+);
+const FRPC_CFG = firstExisting(
+  path.join(DATA_FRP_DIR, "frpc.toml"),
+  RES_FRP_DIR ? path.join(RES_FRP_DIR, "frpc.toml") : null,
+  path.join(DEV_DIR, "frp", "frpc.toml")
+);
 if (fs.existsSync(FRPC_EXE) && fs.existsSync(FRPC_CFG) && process.env.DISABLE_FRPC !== "1") {
   try {
     frpcProc = spawn(FRPC_EXE, ["-c", FRPC_CFG], { stdio: "inherit" });

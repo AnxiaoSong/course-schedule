@@ -2,27 +2,49 @@
   "name": "course-schedule",
   "version": "1.0.0",
   "description": "26大数据 线性代数课程表",
-  "bin": "server.js",
+  "main": "electron/main.js",
   "scripts": {
     "sync": "npx cap sync android",
     "open:android": "npx cap open android",
     "apk": "cd android && gradlew.bat assembleDebug",
-    "build:exe": "pkg . --targets node24-win-x64 --output dist/checkin-server.exe"
+    "build:exe": "pkg . --targets node24-win-x64 --output dist/checkin-server.exe",
+    "electron": "electron .",
+    "dist:win": "electron-builder --win zip"
   },
-  "pkg": {
-    "assets": [
-      "www/**/*"
+  "build": {
+    "appId": "com.song.checkin",
+    "productName": "课堂签到系统",
+    "files": [
+      "server.js",
+      "www/**/*",
+      "electron/**/*"
     ],
-    "outputPath": "dist"
+    "extraResources": [
+      {
+        "from": "frp/frpc.exe",
+        "to": "frp/frpc.exe"
+      },
+      {
+        "from": "frp/frpc.toml",
+        "to": "frp/frpc.toml"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": "zip"
+    },
+    "compression": "normal"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.2",
-    "@capacitor/core": "^8.5.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "@yao-pkg/pkg": "^6.22.0",
+    "electron": "^44.4.1",
+    "electron-builder": "^26.0.12",
     "qrcode-generator": "^2.0.4"
   },
   "license": "MIT"

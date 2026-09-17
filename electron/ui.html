@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>课堂签到系统</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; background: linear-gradient(160deg, #10162b 0%, #1a2340 100%);
+      color: #eef1f8; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      display: flex; flex-direction: column; min-height: 100vh; padding: 22px 18px;
+      user-select: none;
+    }
+    h1 { margin: 0 0 2px; font-size: 19px; letter-spacing: 1px; }
+    .sub { color: #8a93a3; font-size: 12px; margin-bottom: 16px; }
+    .status {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(255, 255, 255, .06); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
+    }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #12b76a; box-shadow: 0 0 0 0 rgba(18,183,106,.5); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 70% { box-shadow: 0 0 0 9px rgba(18,183,106,0); } }
+    .st-t { font-size: 14px; font-weight: 700; }
+    .st-d { font-size: 11px; color: #8a93a3; margin-top: 2px; word-break: break-all; }
+    .counts { display: flex; gap: 10px; margin-bottom: 14px; }
+    .cnt {
+      flex: 1; background: rgba(255, 255, 255, .06); border-radius: 12px;
+      padding: 12px 10px; text-align: center;
+    }
+    .cnt b { font-size: 26px; color: #4ade80; display: block; }
+    .cnt span { font-size: 11px; color: #8a93a3; }
+    .btn {
+      display: block; width: 100%; border: 0; border-radius: 13px; padding: 15px 0;
+      font-size: 15px; font-weight: 700; letter-spacing: 2px; cursor: pointer; font-family: inherit;
+      margin-bottom: 10px; transition: transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn.primary { background: linear-gradient(135deg, #3b5bdb, #7c5cfa); color: #fff; }
+    .btn.green { background: linear-gradient(135deg, #0e9f6e, #12b76a); color: #fff; }
+    .btn.ghost { background: rgba(255, 255, 255, .07); color: #aab4d4; }
+    .btn.danger { background: rgba(255, 107, 107, .15); color: #ff9aa4; border: 1px solid rgba(255, 107, 107, .35); }
+    .foot { margin-top: auto; font-size: 10px; color: #5b6473; text-align: center; line-height: 1.8; }
+    .session {
+      background: rgba(255, 255, 255, .06); border-radius: 12px; padding: 10px 14px;
+      font-size: 13px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .session b { color: #ffd166; font-family: ui-monospace, Consolas, monospace; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <h1>课堂签到系统 · 教师端</h1>
+  <div class="sub">数据保存在本机，云服务器仅做流量转接</div>
+
+  <div class="status">
+    <span class="dot"></span>
+    <div>
+      <div class="st-t">服务运行中</div>
+      <div class="st-d" id="url">https://ai-song.online/student</div>
+    </div>
+  </div>
+
+  <div class="session" id="sessBox" style="display:none">
+    <span>签到进行中</span><b id="sessTime">--:--</b>
+  </div>
+
+  <div class="counts">
+    <div class="cnt"><b id="nSigned">0</b><span>已签到</span></div>
+    <div class="cnt"><b id="nTotal">-</b><span>名单总人数</span></div>
+  </div>
+
+  <button class="btn primary" id="btnProjector">📱 投影二维码（学生扫码）</button>
+  <button class="btn green" id="btnMonitor">📊 签到监控（人数/学号/姓名）</button>
+  <button class="btn ghost" id="btnData">📁 打开数据文件夹</button>
+  <button class="btn danger" id="btnQuit">⏻ 退出（停止全部服务）</button>
+
+  <div class="foot">
+    学生签到地址：https://ai-song.online/student<br />
+    退出本程序即停止服务与内网穿透隧道
+  </div>
+
+  <script>
+    "use strict";
+    var B = "http://127.0.0.1:8080";
+    function $(id) { return document.getElementById(id); }
+    document.getElementById("btnProjector").addEventListener("click", function () {
+      window.ipc ? null : null;
+    });
+
+    function poll() {
+      fetch(B + "/api/status", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+        $("nSigned").textContent = j.total;
+        var box = $("sessBox");
+        if (j.active) {
+          box.style.display = "flex";
+          var m = Math.floor(j.remainSec / 60), s = j.remainSec % 60;
+          $("sessTime").textContent = (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+        } else {
+          box.style.display = "none";
+        }
+      }).catch(function () { });
+      fetch(B + "/api/roster", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+        $("nTotal").textContent = j.total;
+      }).catch(function () { $("nTotal").textContent = "-"; });
+    }
+
+    // Electron 通信（若在纯浏览器打开则降级）
+    function send(ch, data) {
+      if (window.electronAPI && window.electronAPI.send) window.electronAPI.send(ch, data);
+    }
+    document.getElementById("btnProjector").onclick = function () { send("open", { route: "/projector", title: "签到投影" }); };
+    document.getElementById("btnMonitor").onclick = function () { send("open", { route: "/monitor", title: "签到监控" }); };
+    document.getElementById("btnData").onclick = function () { send("open-data", {}); };
+    document.getElementById("btnQuit").onclick = function () { send("quit", {}); };
+
+    poll();
+    setInterval(poll, 3000);
+  </script>
+</body>
+</html>
