@@ -2,19 +2,28 @@
   "name": "course-schedule",
   "version": "1.0.0",
   "description": "26大数据 线性代数课程表",
+  "bin": "server.js",
   "scripts": {
     "sync": "npx cap sync android",
     "open:android": "npx cap open android",
-    "apk": "cd android && gradlew.bat assembleDebug"
+    "apk": "cd android && gradlew.bat assembleDebug",
+    "build:exe": "pkg . --targets node24-win-x64 --output dist/checkin-server.exe"
+  },
+  "pkg": {
+    "assets": [
+      "www/**/*"
+    ],
+    "outputPath": "dist"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
-    "@capacitor/core": "^8.5.2"
+    "@capacitor/core": "^8.5.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
-    "qrcode-generator": "^2.0.4",
-    "xlsx": "^0.18.5"
+    "@yao-pkg/pkg": "^6.22.0",
+    "qrcode-generator": "^2.0.4"
   },
   "license": "MIT"
 }

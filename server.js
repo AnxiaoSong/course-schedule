@@ -8,10 +8,21 @@ const crypto = require("crypto");
 const { spawn, exec } = require("child_process");
 
 const PORT = Number(process.argv[2]) || 8080;
-const PUBLIC_URL = process.env.PUBLIC_URL || "";
-const WWW = path.join(__dirname, "www");
-const ROSTER_DIR = path.join(__dirname, "名单");
-const SECRET_FILE = path.join(__dirname, "secret.json");
+const PUBLIC_URL = process.env.PUBLIC_URL || "https://ai-song.online/";
+
+// 可写数据目录：pkg 打包后跟随 exe；开发模式跟随脚本目录
+const EXE_DIR = path.dirname(process.execPath);
+const DEV_DIR = __dirname;
+const IS_PKG = !!process.pkg;
+const DATA_DIR = IS_PKG ? EXE_DIR : DEV_DIR;
+
+const WWW = IS_PKG ? path.join(__dirname, "www") : path.join(__dirname, "www");
+const ROSTER_DIR = path.join(DATA_DIR, "名单");
+const SECRET_FILE = path.join(DATA_DIR, "secret.json");
+const CSV_DIR = path.join(DATA_DIR, "签到记录");
+const HOTSPOT_FILE = path.join(DATA_DIR, "hotspot.json");
+const BINDINGS_FILE = path.join(DATA_DIR, "bindings.json");
+const CLASSROOM_FILE = path.join(DATA_DIR, "classroom.json");
 
 // ---------- 教师私有 token（本地 secret.json，不入库）----------
 let TOKEN = "";
@@ -187,7 +198,6 @@ const MIME = {
 
 let checkins = [];
 let classroom = null; // {lat, lng, radius}
-const CLASSROOM_FILE = path.join(__dirname, "classroom.json");
 try {
   classroom = JSON.parse(fs.readFileSync(CLASSROOM_FILE, "utf8")) || null;
 } catch (e) { }
@@ -209,7 +219,6 @@ function distMeters(lat1, lng1, lat2, lng2) {
 }
 let session = null; // { endAt, timer }
 let lastCsvFile = "";
-const CSV_DIR = path.join(__dirname, "签到记录");
 
 function pad2(n) { return String(n).padStart(2, "0"); }
 
@@ -261,8 +270,6 @@ function endSession(save) {
   return saved;
 }
 let hotspot = { ssid: "", pwd: "" };
-const HOTSPOT_FILE = path.join(__dirname, "hotspot.json");
-const BINDINGS_FILE = path.join(__dirname, "bindings.json");
 
 let bindings = { byId: {}, byDevice: {} };
 try {
@@ -285,8 +292,8 @@ loadRoster(true);
 
 // ---------- frpc 子进程托管：node 退出（含关闭窗口）时一并停止 ----------
 let frpcProc = null;
-const FRPC_EXE = path.join(__dirname, "frp", "frpc.exe");
-const FRPC_CFG = path.join(__dirname, "frp", "frpc.toml");
+const FRPC_EXE = path.join(DATA_DIR, "frp", "frpc.exe");
+const FRPC_CFG = path.join(DATA_DIR, "frp", "frpc.toml");
 if (fs.existsSync(FRPC_EXE) && fs.existsSync(FRPC_CFG) && process.env.DISABLE_FRPC !== "1") {
   try {
     frpcProc = spawn(FRPC_EXE, ["-c", FRPC_CFG], { stdio: "inherit" });
@@ -671,8 +678,15 @@ server.listen(PORT, () => {
   console.log("  Course Schedule Check-in Server (Node.js)");
   console.log(`  Local:      http://localhost:${PORT}`);
   ips.forEach((ip) => console.log(`  Network:    http://${ip}:${PORT}`));
-  console.log(`  Projector:  http://localhost:${PORT}/projector`);
-  console.log(`  Monitor:    http://localhost:${PORT}/monitor`);
-  console.log("  Press Ctrl+C to stop");
+  console.log(`  Projector:  ${PUBLIC_URL}projector`);
+  console.log(`  Monitor:    ${PUBLIC_URL}monitor`);
+  console.log("  Press Ctrl+C to stop (关闭窗口停止全部服务)");
   console.log("==============================================");
+
+  // 打包版（教师电脑双击 exe）：自动打开公网投影页
+  if (IS_PKG || process.env.AUTO_OPEN === "1") {
+    setTimeout(() => {
+      try { exec(`start "" "${PUBLIC_URL}projector"`); } catch (e) { }
+    }, 1500);
+  }
 });

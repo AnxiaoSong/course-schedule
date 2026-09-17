@@ -17,3 +17,13 @@ bindings.json
 secret.json
 classroom.json
 签到记录/
+教师端/
+dist/
+ssl/
+*.zip
+*.key
+*.crt
+*.csr
+*.pem
+*.pfx
+*.p12
