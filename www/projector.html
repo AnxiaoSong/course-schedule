@@ -241,9 +241,26 @@
       });
       function afterBase() {
         TeacherAuth.ensureAuth(API).then(function () {
-          poll();
           loadClassroom();
+          autoStartIfIdle();
         });
+      }
+
+      // 打开投影页自动开启签到会话（默认5分钟），学生可立即扫码
+      function autoStartIfIdle() {
+        TeacherAuth.api(API + "/api/status", { cache: "no-store" })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (j.active) { poll(); return; }
+            return TeacherAuth.api(API + "/api/start", {
+              method: "POST",
+              body: JSON.stringify({ minutes: 5 })
+            }).then(function () {
+              document.getElementById("saved").textContent = "已自动开始签到（5分钟倒计时）";
+              poll();
+            });
+          })
+          .catch(function () { poll(); });
       }
     })();
 
